@@ -1,0 +1,11 @@
+# Fichiers compilés et SBT
+target/
+project/target/
+project/project/
+.bloop/
+.bsp/
+
+# Fichiers IDE (VS Code, IntelliJ)
+.idea/
+*.iml
+.vscode/
