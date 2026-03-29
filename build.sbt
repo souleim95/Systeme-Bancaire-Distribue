@@ -1,6 +1,6 @@
 name := "SystemeBancaireG5"
 version := "0.1"
-scalaVersion := "2.13.12" // Version stable de Scala 2
+scalaVersion := "2.13.18" // Version stable de Scala 2
 
 val AkkaVersion = "2.8.5"
 
