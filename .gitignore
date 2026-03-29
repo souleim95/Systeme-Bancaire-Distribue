@@ -9,3 +9,4 @@ project/project/
 .idea/
 *.iml
 .vscode/
+.metals/
