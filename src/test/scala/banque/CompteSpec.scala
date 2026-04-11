@@ -22,14 +22,14 @@ class CompteSpec extends AnyWordSpecLike with BeforeAndAfterAll {
       response.nouveauSolde shouldEqual 150.0
     }
 
-    "refuser un dépôt avec montant négatif" in {
+    "refuser un depot avec montant negatif" in {
       val replyProbe = testKit.createTestProbe[ReponseBancaire]()
       val compte = testKit.spawn(Compte("ACC002", 100.0))
 
       compte ! Deposer("ACC002", -50.0, replyProbe.ref)
       val response = replyProbe.expectMessageType[OperationEchouee]
 
-      response.raison shouldEqual "Montant doit être positif"
+      response.raison shouldEqual "Montant doit etre positif"
     }
 
     "accepter un retrait si le solde est suffisant" in {
@@ -126,7 +126,7 @@ class CompteSpec extends AnyWordSpecLike with BeforeAndAfterAll {
       response.soldeRestitue shouldEqual 500.0
     }
 
-    "refuser les opérations sur un compte fermé" in {
+    "refuser les operations sur un compte ferme" in {
       val replyProbe = testKit.createTestProbe[ReponseBancaire]()
       val compte = testKit.spawn(Compte("ACC012", 200.0))
 
@@ -134,21 +134,21 @@ class CompteSpec extends AnyWordSpecLike with BeforeAndAfterAll {
       compte ! FermerCompte("ACC012", replyProbe.ref)
       replyProbe.expectMessageType[CompteFermé]
 
-      // Essayer un dépôt
+      // Essayer un depot
       compte ! Deposer("ACC012", 50.0, replyProbe.ref)
       val response = replyProbe.expectMessageType[OperationEchouee]
 
-      response.raison shouldEqual "Compte fermé"
+      response.raison shouldEqual "Compte ferme"
     }
 
-    "refuser les opérations sur un compte inexistant" in {
+    "refuser les operations sur un compte inexistant" in {
       val replyProbe = testKit.createTestProbe[ReponseBancaire]()
       val compte = testKit.spawn(Compte("ACC013", 100.0))
 
       compte ! Deposer("ACC_INEXISTANT", 50.0, replyProbe.ref)
       val response = replyProbe.expectMessageType[OperationEchouee]
 
-      response.raison shouldEqual "Compte ACC_INEXISTANT non trouvé"
+      response.raison shouldEqual "Compte ACC_INEXISTANT non trouve"
     }
   }
 }

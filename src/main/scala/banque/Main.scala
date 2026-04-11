@@ -2,6 +2,8 @@ package banque
 
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
+import scala.concurrent.Await
+import scala.concurrent.duration._
 
 object Main extends App {
   val system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "BankingSystem")
@@ -9,33 +11,45 @@ object Main extends App {
   try {
     println("=== SYSTEME BANCAIRE DISTRIBUE ===\n")
 
-    // Creer les comptes
-    println("1. Creation des comptes...")
-    val compte1 = system.systemActorOf(Compte("ACC-001", 1000.0), "Compte1")
-    val compte2 = system.systemActorOf(Compte("ACC-002", 500.0), "Compte2")
-    val compte3 = system.systemActorOf(Compte("ACC-003", 750.0), "Compte3")
+    // Creer la banque principale
+    println("1. Creation de la banque...")
+    val banque = system.systemActorOf(Banque(), "MainBank")
+    println("   [OK] Banque creee\n")
+
+    Thread.sleep(500)
+
+    // Creer les comptes via la banque
+    println("2. Creation des comptes via la banque...")
+    banque ! Banque.CreerCompteReq("ACC-001", 1000.0, system.ignoreRef)
+    banque ! Banque.CreerCompteReq("ACC-002", 500.0, system.ignoreRef)
+    banque ! Banque.CreerCompteReq("ACC-003", 750.0, system.ignoreRef)
     println("   [OK] 3 comptes crees\n")
 
     Thread.sleep(500)
 
-    // Depot sur compte 1
-    println("2. Depot de 200 EUR sur ACC-001...")
-    compte1 ! Deposer("ACC-001", 200.0, system.ignoreRef)
+    // Opérations via la banque
+    println("3. Depot de 200 EUR sur ACC-001...")
+    banque ! Banque.OperationCompteBanque(
+      Deposer("ACC-001", 200.0, system.ignoreRef)
+    )
     Thread.sleep(500)
 
-    // Retrait sur compte 2
-    println("3. Retrait de 100 EUR sur ACC-002...")
-    compte2 ! Retirer("ACC-002", 100.0, system.ignoreRef)
+    println("4. Retrait de 100 EUR sur ACC-002...")
+    banque ! Banque.OperationCompteBanque(
+      Retirer("ACC-002", 100.0, system.ignoreRef)
+    )
     Thread.sleep(500)
 
-    // Virement de compte 1 a compte 2
-    println("4. Virement de 300 EUR de ACC-001 vers ACC-002...")
-    compte1 ! Virement("ACC-001", 300.0, "ACC-002", compte2, system.ignoreRef)
+    println("5. Virement de 300 EUR de ACC-001 vers ACC-002...")
+    banque ! Banque.OperationCompteBanque(
+      Virement("ACC-001", 300.0, "ACC-002", system.ignoreRef, system.ignoreRef)
+    )
     Thread.sleep(500)
 
-    // Virement de compte 2 a compte 3
-    println("5. Virement de 150 EUR de ACC-002 vers ACC-003...")
-    compte2 ! Virement("ACC-002", 150.0, "ACC-003", compte3, system.ignoreRef)
+    println("6. Virement de 150 EUR de ACC-002 vers ACC-003...")
+    banque ! Banque.OperationCompteBanque(
+      Virement("ACC-002", 150.0, "ACC-003", system.ignoreRef, system.ignoreRef)
+    )
     Thread.sleep(1000)
 
     println("\n=== ETAT FINAL DES COMPTES ===\n")
