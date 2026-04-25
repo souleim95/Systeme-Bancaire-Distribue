@@ -35,3 +35,8 @@ Conformément aux exigences du projet, notre travail s'articule autour de 5 gran
 3. Réseau de Pétri représentant l'application.
 4. Rapport détaillé de vérification.
 5. Comparaison Simulation vs Modèle formel.
+
+
+## 🔗 Lien GitHub
+- Repository: `https://github.com/souleim95/Systeme-Bancaire-Distribue.git`
+- Branche de travail actuelle: `souleim`

@@ -145,6 +145,34 @@ class BanqueSpec extends AnyWordSpecLike with BeforeAndAfterAll {
       response.nombreComptes shouldEqual 3
     }
 
+    "maintenir les soldes agreges apres depots, retraits et virements" in {
+      val replyProbe = testKit.createTestProbe[ReponseBancaire]()
+      val banque = testKit.spawn(Banque())
+
+      banque ! Banque.CreerCompteReq("ACC-B13", 1000.0, replyProbe.ref)
+      replyProbe.expectMessageType[CompteCreé]
+      banque ! Banque.CreerCompteReq("ACC-B14", 500.0, replyProbe.ref)
+      replyProbe.expectMessageType[CompteCreé]
+
+      banque ! Banque.OperationCompteBanque(Deposer("ACC-B13", 200.0, replyProbe.ref))
+      replyProbe.expectMessageType[OperationReussie]
+
+      banque ! Banque.OperationCompteBanque(Retirer("ACC-B14", 100.0, replyProbe.ref))
+      replyProbe.expectMessageType[OperationReussie]
+
+      banque ! Banque.OperationCompteBanque(
+        Virement("ACC-B13", 300.0, "ACC-B14", testKit.createTestProbe().ref, replyProbe.ref)
+      )
+      replyProbe.expectMessageType[OperationReussie]
+
+      val listeProbe = testKit.createTestProbe[Banque.ListeComptes]()
+      banque ! Banque.ListerComptesReq(listeProbe.ref)
+      val comptes = listeProbe.expectMessageType[Banque.ListeComptes].comptes
+
+      comptes("ACC-B13") shouldEqual 900.0
+      comptes("ACC-B14") shouldEqual 700.0
+    }
+
     "supprimer un compte" in {
       val replyProbe = testKit.createTestProbe[ReponseBancaire]()
       val banque = testKit.spawn(Banque())
