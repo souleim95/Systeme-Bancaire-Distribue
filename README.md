@@ -51,4 +51,4 @@ Guide de demonstration : [`docs/guide_interface_demo.md`](docs/guide_interface_d
 
 ## 🔗 Lien GitHub
 - Repository: `https://github.com/souleim95/Systeme-Bancaire-Distribue.git`
-- Branche de travail actuelle: `souleim_v2`
+- Branche de rendu finale: `main`

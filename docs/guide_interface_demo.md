@@ -310,7 +310,7 @@ surete et de vivacite sur l'evolution du reseau de Petri.
 | Simulation Akka | tests + front + `PetriNetIntegrationDemo` | Operations executees dans le front |
 | Comparaison Akka vs Petri | `docs/rapport_verification.md` et demo d'integration | Montrer operations Akka puis resultats Petri/LTL |
 | Sources bibliographiques | `docs/etat_de_l_art.md` | Indiquer le fichier dans les livrables |
-| Lien GitHub | `README.md` | Montrer le repository et la branche `souleim_v2` |
+| Lien GitHub | `README.md` | Montrer le repository et la branche `main` |
 
 ## 6. Commandes finales a executer avant rendu
 
