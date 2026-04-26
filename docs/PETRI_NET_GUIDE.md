@@ -274,20 +274,19 @@ src/test/scala/banque/
 
 ---
 
-## Limitations et améliorations futures
+## Limitations et extensions possibles hors cahier des charges
 
 ### Limitations actuelles :
 - Les réseaux sont statiques (pas de création/suppression runtime)
-- Pas de visualisation graphique
-- Pas d'optimisation pour très grands réseaux
+- Le front visualise les résultats et les opérations, mais pas le graphe de Petri complet
+- Pas d'optimisation spécifique pour très grands réseaux
 
-### Améliorations envisagées :
-- [ ] Réseaux colorés (avec données)
-- [x] Vérification LTL
-- [ ] Vérification CTL
-- [ ] Génération de contre-exemples visuels
-- [ ] Exécution symbolique
-- [ ] Vérification d'équité
+### Extensions envisageables non requises :
+- Réseaux colorés (avec données)
+- Vérification CTL
+- Génération de contre-exemples visuels
+- Exécution symbolique
+- Vérification d'équité
 
 ---
 

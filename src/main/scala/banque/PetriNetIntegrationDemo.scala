@@ -125,11 +125,11 @@ Propriétés garanties:
   ✓ L'invariant "solde non-négatif" est vérifié par les gardes Akka et les marquages non négatifs
   ✓ La sûreté est formellement prouvée
 
-Prochaines étapes:
+Validation finale:
   [x] Vérification des propriétés LTL
   [x] Simulation comportementale Akka
   [x] Analyse des propriétés structurelles
-  [ ] Visualisation graphique du réseau
+  [x] Interface web de démonstration disponible avec banque.FrontServer
   """)
   
   println("="*80)

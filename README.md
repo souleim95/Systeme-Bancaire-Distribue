@@ -39,6 +39,8 @@ sbt "runMain banque.FrontServer 8080"
 
 Puis ouvrir `http://localhost:8080`.
 
+Guide de demonstration : [`docs/guide_interface_demo.md`](docs/guide_interface_demo.md).
+
 ## 📦 Livrables
 1. Bibliographie et sources de référence.
 2. Modèle Akka/Scala fonctionnel simulant le système.
@@ -49,4 +51,4 @@ Puis ouvrir `http://localhost:8080`.
 
 ## 🔗 Lien GitHub
 - Repository: `https://github.com/souleim95/Systeme-Bancaire-Distribue.git`
-- Branche de travail actuelle: `souleim`
+- Branche de travail actuelle: `souleim_v2`

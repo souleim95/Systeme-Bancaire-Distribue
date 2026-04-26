@@ -319,23 +319,23 @@ checker.printReport(results)
 
 ---
 
-## Quelques limitations et extensions possibles
+## Quelques limitations et extensions possibles hors cahier des charges
 
 ### Limitations actuelles
 
-- ✓ Pas de quantificateurs universels/existentiels
-- ✓ Pas de propriétés sur les arcs (seulement sur les places)
-- ✓ Pas de variables d'état
-- ✓ Pas d'optimisations BDD
+- Pas de quantificateurs universels/existentiels
+- Pas de propriétés sur les arcs (seulement sur les places)
+- Pas de variables d'état
+- Pas d'optimisations BDD
 
-### Extensions possibles
+### Extensions possibles non requises
 
-- [ ] **CTL** (Computational Tree Logic) pour propriétés de branchement
-- [ ] **Quantification** : ∀φ, ∃φ
-- [ ] **Propriétés arithmétiques** : count_p > 5
-- [ ] **Optimization par BDD** (Binary Decision Diagrams)
-- [ ] **Vérification distribuée** pour grands réseaux
-- [ ] **Génération de contre-exemples interactifs**
+- **CTL** (Computational Tree Logic) pour propriétés de branchement
+- **Quantification** : ∀φ, ∃φ
+- **Propriétés arithmétiques** : count_p > 5
+- **Optimization par BDD** (Binary Decision Diagrams)
+- **Vérification distribuée** pour grands réseaux
+- **Génération de contre-exemples interactifs**
 
 ---
 
