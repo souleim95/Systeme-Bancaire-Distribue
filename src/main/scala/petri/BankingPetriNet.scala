@@ -96,19 +96,25 @@ object BankingPetriNet {
       Arc("sourceLocked_p", "completeTransfer_t", 1),
       Arc("destLocked_p", "completeTransfer_t", 1),
       Arc("completeTransfer_t", "transferCompleted_p", 1),
-      Arc("completeTransfer_t", "sourceAvailable_p", 1),
-      Arc("completeTransfer_t", "destAvailable_p", 1),
+      
+      // Liberer les comptes apres confirmation du virement
+      Arc("transferCompleted_p", "releaseBothAccounts_t", 1),
+      Arc("releaseBothAccounts_t", "sourceAvailable_p", 1),
+      Arc("releaseBothAccounts_t", "destAvailable_p", 1),
+      Arc("releaseBothAccounts_t", "sourceValid_p", 1),
       
       // Annuler le virement
       Arc("transferInitiated_p", "abortTransfer_t", 1),
       Arc("sourceLocked_p", "abortTransfer_t", 1),
       Arc("destLocked_p", "abortTransfer_t", 1),
       Arc("abortTransfer_t", "sourceAvailable_p", 1),
-      Arc("abortTransfer_t", "destAvailable_p", 1)
+      Arc("abortTransfer_t", "destAvailable_p", 1),
+      Arc("abortTransfer_t", "sourceValid_p", 1)
     )
     
     val initialMarking = Marking(Map(
       "sourceAvailable_p" -> 1,
+      "sourceValid_p" -> 1,
       "destAvailable_p" -> 1
     ))
     
@@ -133,7 +139,9 @@ object BankingPetriNet {
         s"${accountId}_valid" -> Place(s"${accountId}_valid", s"$accountId Valid", 0),
         s"${accountId}_locked" -> Place(s"${accountId}_locked", s"$accountId Locked", 0)
       )
-      initialMarkingMap = initialMarkingMap + (s"${accountId}_available" -> 1)
+      initialMarkingMap = initialMarkingMap +
+        (s"${accountId}_available" -> 1) +
+        (s"${accountId}_valid" -> 1)
     }
     
     // Créer les transitions pour chaque compte

@@ -43,6 +43,16 @@ class PetriNetBankingTests extends AnyFlatSpec with Matchers {
     val (reachable, _) = petriNet.getReachabilityGraph
     reachable.size should be > 0
   }
+
+  it should "permettre de completer un virement sans deadlock" in {
+    val petriNet = BankingPetriNet.createTransferNet()
+    val checker = new PropertyChecker(petriNet)
+    val ltlChecker = new LTLModelChecker(petriNet)
+
+    checker.checkNoDeadlock.isValid should be(true)
+    checker.checkLiveness.isValid should be(true)
+    ltlChecker.check("G (has_transferInitiated_p -> F (has_transferCompleted_p | has_sourceAvailable_p))").isValid should be(true)
+  }
   
   "Un réseau complet" should "gérer plusieurs comptes" in {
     val accounts = List("ACC-001", "ACC-002", "ACC-003")

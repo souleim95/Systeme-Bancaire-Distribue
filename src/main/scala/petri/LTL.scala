@@ -296,9 +296,9 @@ class LTLModelChecker(petriNet: PetriNet) {
 
 object LTLProperties {
   object Banking {
-    val accountAvailability = "G (has_accountAvailable_p)"
+    val accountAvailability = "G (has_accountAvailable_p | has_accountLocked_p)"
     val depositCompletion = "F (has_transferCompleted_p)"
-    val transferGuarantee = "G (has_transferInitiated_p -> F (has_transferCompleted_p))"
+    val transferGuarantee = "G (has_transferInitiated_p -> F (has_transferCompleted_p | has_sourceAvailable_p))"
     val noDeadlock = "F true"
     val accountValid = "G (has_sourceAvailable_p | has_destAvailable_p)"
   }

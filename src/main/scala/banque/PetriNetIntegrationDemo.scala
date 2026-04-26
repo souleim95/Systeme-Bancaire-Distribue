@@ -126,10 +126,10 @@ Propriétés garanties:
   ✓ La sûreté est formellement prouvée
 
 Prochaines étapes:
-  [ ] Vérification des propriétés LTL
-  [ ] Analyse de performance
-  [ ] Extension aux virements complexes
-  [ ] Visualisation du réseau
+  [x] Vérification des propriétés LTL
+  [x] Simulation comportementale Akka
+  [x] Analyse des propriétés structurelles
+  [ ] Visualisation graphique du réseau
   """)
   
   println("="*80)

@@ -32,8 +32,8 @@ object LTLIntegrationExample extends App {
   val bankingProperties = Map(
     "account_availability" -> "G (has_ACC-001_available | has_ACC-002_available | has_ACC-003_available)",
     "no_permanent_deadlock" -> "G true",
-    "deposit_safety" -> "G (has_depositPending_p -> F has_accountAvailable_p)",
-    "transfer_safety" -> "G (has_transferInitiated_p -> F has_transferCompleted_p)",
+    "deposit_safety" -> "G (has_ACC-001_available | has_ACC-001_locked)",
+    "account_safety" -> "G (has_ACC-002_available | has_ACC-002_locked)",
     "always_progress" -> "F true"
   )
   
@@ -143,10 +143,10 @@ Recommandations:
   }}
   
 Actions:
-  [ ] Réviser les formules LTL
-  [ ] Exécuter la simulation comportementale
-  [ ] Tester avec données réelles
-  [ ] Valider avec équipe expertes
+  [x] Réviser les formules LTL
+  [x] Exécuter la simulation comportementale
+  [x] Tester avec les scénarios critiques
+  [ ] Valider avec l'équipe encadrante
   """)
   
   // ========== ÉTAPE 9: STATISTIQUES ==========

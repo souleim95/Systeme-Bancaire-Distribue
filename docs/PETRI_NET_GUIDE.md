@@ -279,12 +279,12 @@ src/test/scala/banque/
 ### Limitations actuelles :
 - Les réseaux sont statiques (pas de création/suppression runtime)
 - Pas de visualisation graphique
-- Pas de vérification LTL complète
 - Pas d'optimisation pour très grands réseaux
 
 ### Améliorations envisagées :
 - [ ] Réseaux colorés (avec données)
-- [ ] Vérification LTL/CTL
+- [x] Vérification LTL
+- [ ] Vérification CTL
 - [ ] Génération de contre-exemples visuels
 - [ ] Exécution symbolique
 - [ ] Vérification d'équité
