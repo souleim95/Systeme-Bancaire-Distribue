@@ -29,6 +29,16 @@ Conformément aux exigences du projet, notre travail s'articule autour de 5 gran
 * **Modélisation Mathématique :** Réseaux de Pétri 
 * **Logique Formelle :** LTL (Linear Temporal Logic) 
 
+## Interface de demonstration
+
+Une interface web locale permet de piloter les comptes, lancer des operations et visualiser les resultats Petri/LTL :
+
+```bash
+sbt "runMain banque.FrontServer 8080"
+```
+
+Puis ouvrir `http://localhost:8080`.
+
 ## 📦 Livrables
 1. Bibliographie et sources de référence.
 2. Modèle Akka/Scala fonctionnel simulant le système.
