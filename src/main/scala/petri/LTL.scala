@@ -33,14 +33,14 @@ class LTLParser(input: String) {
   private var pos = 0
 
   private def tokenize(input: String): List[String] = {
-    val tokenPattern = """->|[()!&|]|[A-Za-z_][A-Za-z0-9_\-]*|\S""".r
+    val tokenPattern = """->|→|[()!&|¬∧∨]|[A-Za-z_][A-Za-z0-9_\-]*|\S""".r
     tokenPattern.findAllIn(input).map {
-      case "!" => "NOT"
-      case "&" => "AND"
-      case "|" => "OR"
+      case "!" | "¬" => "NOT"
+      case "&" | "∧" => "AND"
+      case "|" | "∨" => "OR"
       case "(" => "LPAREN"
       case ")" => "RPAREN"
-      case "->" => "IMPLIES"
+      case "->" | "→" => "IMPLIES"
       case token => token
     }.toList
   }
@@ -161,69 +161,118 @@ object LTLParser {
 // ============ EVALUATEUR LTL ============
 
 class LTLEvaluator(petriNet: PetriNet) {
-  def verify(formula: LTLFormula): Boolean = {
-    val (_, transitions) = petriNet.getReachabilityGraph
-    val paths = generatePathsFrom(petriNet.initialMarking, transitions, maxDepth = 100)
-    paths.forall(path => evaluatePath(formula, path))
+  private case class LassoPath(states: Vector[Marking], loopStart: Int) {
+    require(states.nonEmpty, "A path must contain at least one state")
+    require(loopStart >= 0 && loopStart < states.length, "Invalid loop start")
+
+    def nextIndex(index: Int): Int =
+      if (index + 1 < states.length) index + 1 else loopStart
+
+    def finiteHorizonFrom(index: Int): Vector[Int] = {
+      val prefix = index until states.length
+      val loop = loopStart until states.length
+      (prefix ++ loop).toVector.distinct
+    }
+
+    def asCounterExample: List[Marking] =
+      (states :+ states(loopStart)).toList
   }
 
-  private def evaluatePath(formula: LTLFormula, path: List[Marking]): Boolean = {
+  def verify(formula: LTLFormula): Boolean =
+    counterExample(formula).isEmpty
+
+  def counterExample(formula: LTLFormula): Option[List[Marking]] = {
+    val (_, transitions) = petriNet.getReachabilityGraph
+    generateLassoPaths(petriNet.initialMarking, transitions)
+      .find(path => !evaluatePath(formula, path))
+      .map(_.asCounterExample)
+  }
+
+  private def evaluatePath(formula: LTLFormula, path: LassoPath): Boolean = {
     def eval(f: LTLFormula, index: Int): Boolean = f match {
-      case Atom(name) => evaluateAtom(name, path(index % path.length))
+      case Atom(name) => evaluateAtom(name, path.states(index))
       case Not(inner) => !eval(inner, index)
       case And(left, right) => eval(left, index) && eval(right, index)
       case Or(left, right) => eval(left, index) || eval(right, index)
-      case Next(inner) => eval(inner, index + 1)
+      case Next(inner) => eval(inner, path.nextIndex(index))
       case Finally(inner) =>
-        (index until (index + path.length)).exists(i => eval(inner, i))
+        path.finiteHorizonFrom(index).exists(i => eval(inner, i))
       case Globally(inner) =>
-        (index until (index + path.length)).forall(i => eval(inner, i))
+        path.finiteHorizonFrom(index).forall(i => eval(inner, i))
       case Until(left, right) =>
-        (index until (index + path.length)).exists { j =>
-          eval(right, j) && (index until j).forall(i => eval(left, i))
+        path.finiteHorizonFrom(index).exists { j =>
+          eval(right, j) && positionsUntil(path, index, j).forall(i => eval(left, i))
         }
       case Release(left, right) =>
-        (index until (index + path.length)).forall { j =>
-          eval(right, j) || (index until j).exists(i => eval(left, i))
-        }
+        !eval(Until(Not(left), Not(right)), index)
     }
 
-    path.nonEmpty && eval(formula, 0)
+    eval(formula, 0)
+  }
+
+  private def positionsUntil(path: LassoPath, from: Int, to: Int): Vector[Int] = {
+    val positions = scala.collection.mutable.ArrayBuffer[Int]()
+    var current = from
+    var guard = 0
+    val maxSteps = path.states.length * 2 + 1
+
+    while (current != to && guard < maxSteps) {
+      positions += current
+      current = path.nextIndex(current)
+      guard += 1
+    }
+
+    positions.toVector
   }
 
   private def evaluateAtom(name: String, marking: Marking): Boolean = name match {
     case "true" => true
     case "false" => false
+    case "enabled" | "has_enabled_transition" =>
+      petriNet.getEnabledTransitions(marking).nonEmpty
+    case "deadlock" =>
+      petriNet.getEnabledTransitions(marking).isEmpty
     case prop if prop.startsWith("has_") =>
       marking(prop.substring(4)) > 0
     case prop if prop.startsWith("count_") =>
-      val parts = prop.substring(6).split("_eq_")
-      parts.length == 2 && parts(1).toIntOption.exists(marking(parts(0)) == _)
+      evaluateCountAtom(prop.substring(6), marking)
     case prop =>
       marking(prop) > 0
   }
 
-  private def generatePathsFrom(
-    marking: Marking,
-    transitions: Map[Marking, Map[String, Marking]],
-    maxDepth: Int
-  ): List[List[Marking]] = {
-    def buildPaths(current: Marking, depth: Int, visited: Set[Marking]): List[List[Marking]] = {
-      if (depth == 0 || visited.contains(current)) {
-        List(List(current))
+  private def evaluateCountAtom(expression: String, marking: Marking): Boolean = {
+    val operators = List("_eq_" -> ((a: Int, b: Int) => a == b),
+                         "_gte_" -> ((a: Int, b: Int) => a >= b),
+                         "_lte_" -> ((a: Int, b: Int) => a <= b))
+
+    operators.exists { case (separator, predicate) =>
+      val parts = expression.split(separator)
+      parts.length == 2 && parts(1).toIntOption.exists(limit => predicate(marking(parts(0)), limit))
+    }
+  }
+
+  private def generateLassoPaths(
+    initial: Marking,
+    transitions: Map[Marking, Map[String, Marking]]
+  ): List[LassoPath] = {
+    def dfs(current: Marking, stack: Vector[Marking]): List[LassoPath] = {
+      val nextStates = transitions.getOrElse(current, Map.empty).values.toList.distinct
+
+      if (nextStates.isEmpty) {
+        List(LassoPath(stack, stack.length - 1))
       } else {
-        val nextStates = transitions.getOrElse(current, Map.empty)
-        if (nextStates.isEmpty) {
-          List(List(current))
-        } else {
-          nextStates.values.toList.flatMap { next =>
-            buildPaths(next, depth - 1, visited + current).map(current :: _)
+        nextStates.flatMap { next =>
+          val existingIndex = stack.indexOf(next)
+          if (existingIndex >= 0) {
+            List(LassoPath(stack, existingIndex))
+          } else {
+            dfs(next, stack :+ next)
           }
         }
       }
     }
 
-    buildPaths(marking, maxDepth, Set.empty)
+    dfs(initial, Vector(initial))
   }
 }
 
@@ -256,12 +305,15 @@ class LTLModelChecker(petriNet: PetriNet) {
   def check(formulaString: String): LTLVerificationResult = {
     try {
       val formula = LTLParser.parse(formulaString)
-      val isValid = LTLEvaluator(petriNet).verify(formula)
+      val evaluator = LTLEvaluator(petriNet)
+      val counterExample = evaluator.counterExample(formula)
+      val isValid = counterExample.isEmpty
 
       LTLVerificationResult(
         formula = formulaString,
         isValid = isValid,
-        message = if (isValid) "Formula is satisfied on all paths" else "Formula is violated on some path"
+        message = if (isValid) "Formula is satisfied on all paths" else "Formula is violated on some path",
+        counterExample = counterExample
       )
     } catch {
       case e: ParseException =>
@@ -299,7 +351,7 @@ object LTLProperties {
     val accountAvailability = "G (has_accountAvailable_p | has_accountLocked_p)"
     val depositCompletion = "F (has_transferCompleted_p)"
     val transferGuarantee = "G (has_transferInitiated_p -> F (has_transferCompleted_p | has_sourceAvailable_p))"
-    val noDeadlock = "F true"
+    val noDeadlock = "G enabled"
     val accountValid = "G (has_sourceAvailable_p | has_destAvailable_p)"
   }
 
@@ -310,6 +362,6 @@ object LTLProperties {
 
   object Liveness {
     val eventuallyHappens = "F true"
-    val alwaysCanProgress = "G true"
+    val alwaysCanProgress = "G enabled"
   }
 }

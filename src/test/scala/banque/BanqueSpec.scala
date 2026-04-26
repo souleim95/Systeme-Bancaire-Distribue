@@ -1,7 +1,6 @@
 package banque
 
-import akka.actor.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
-import akka.actor.typed.ActorRef
+import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers._
@@ -59,6 +58,23 @@ class BanqueSpec extends AnyWordSpecLike with BeforeAndAfterAll {
       val response = replyProbe.expectMessageType[OperationReussie]
 
       response.nouveauSolde shouldEqual 1200.0
+    }
+
+    "router correctement plusieurs reponses de comptes en parallele" in {
+      val replyProbeA = testKit.createTestProbe[ReponseBancaire]()
+      val replyProbeB = testKit.createTestProbe[ReponseBancaire]()
+      val banque = testKit.spawn(Banque())
+
+      banque ! Banque.CreerCompteReq("ACC-P01", 100.0, replyProbeA.ref)
+      replyProbeA.expectMessageType[CompteCreé]
+      banque ! Banque.CreerCompteReq("ACC-P02", 200.0, replyProbeA.ref)
+      replyProbeA.expectMessageType[CompteCreé]
+
+      banque ! Banque.OperationCompteBanque(Deposer("ACC-P01", 10.0, replyProbeA.ref))
+      banque ! Banque.OperationCompteBanque(Deposer("ACC-P02", 20.0, replyProbeB.ref))
+
+      replyProbeA.expectMessageType[OperationReussie].nouveauSolde shouldEqual 110.0
+      replyProbeB.expectMessageType[OperationReussie].nouveauSolde shouldEqual 220.0
     }
 
     "refuser operation sur compte inexistant" in {

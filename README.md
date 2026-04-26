@@ -33,7 +33,7 @@ Conformément aux exigences du projet, notre travail s'articule autour de 5 gran
 1. Bibliographie et sources de référence.
 2. Modèle Akka/Scala fonctionnel simulant le système.
 3. Réseau de Pétri représentant l'application.
-4. Rapport détaillé de vérification.
+4. Rapport détaillé de vérification : [`docs/rapport_verification.md`](docs/rapport_verification.md).
 5. Comparaison Simulation vs Modèle formel.
 
 

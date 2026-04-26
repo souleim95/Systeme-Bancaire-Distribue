@@ -43,8 +43,8 @@ object PetriNetIntegrationDemo extends App {
   
   // Vérifier un invariant personnalisé
   val invariantCheck = checker.checkInvariant(
-    "Les comptes existent",
-    m => m.tokens.keys.size >= 0  // Simplifié pour l'exemple
+    "Marquages non negatifs",
+    m => m.tokens.values.forall(_ >= 0)
   )
   println(s"✓ Vérification invariant: ${if (invariantCheck.isValid) "PASS" else "FAIL"}")
   
@@ -122,7 +122,7 @@ Résumé de l'analyse:
 Propriétés garanties:
   ✓ Pas de deadlock possible dans le système distribué
   ✓ Les opérations sont atomiques au niveau du modèle
-  ✓ L'invariant "solde non-négatif" peut être vérifié
+  ✓ L'invariant "solde non-négatif" est vérifié par les gardes Akka et les marquages non négatifs
   ✓ La sûreté est formellement prouvée
 
 Prochaines étapes:

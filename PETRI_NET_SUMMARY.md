@@ -171,7 +171,7 @@ Utilitaires d'analyse :
 |-----------|----------|--------|
 | Deadlock | ✗ **AUCUN** | Avec abort mechanism |
 | Vivacité | ✓ **OK** | 4 transitions |
-| **États accessibles** | **~12-15** | Complexe |
+| **États accessibles** | **3** | Initial, virement initié, virement complété |
 
 ---
 
@@ -274,7 +274,7 @@ Conformément aux exigences du projet :
 
 ## 🚧 Extensions futures
 
-- [ ] Vérification LTL complète
+- [x] Vérification LTL complète
 - [ ] Visualisation graphique du réseau
 - [ ] Export PNML (Petri Net Markup Language)
 - [ ] Réseaux temporisés (Time Petri Nets)

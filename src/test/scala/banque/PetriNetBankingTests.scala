@@ -59,6 +59,15 @@ class PetriNetBankingTests extends AnyFlatSpec with Matchers {
     val petriNet = BankingPetriNet.createCompleteNet(accounts)
     petriNet.places.size should be >= accounts.size * 3
   }
+
+  it should "verifier strictement deadlock et vivacite pour plusieurs comptes" in {
+    val accounts = List("ACC-001", "ACC-002", "ACC-003")
+    val petriNet = BankingPetriNet.createCompleteNet(accounts)
+    val checker = new PropertyChecker(petriNet)
+
+    checker.checkNoDeadlock.isValid should be(true)
+    checker.checkLiveness.isValid should be(true)
+  }
   
   "Un marquage" should "supporter l'incrémentation et la décrémentation" in {
     val marking = Marking(Map("p1" -> 5))

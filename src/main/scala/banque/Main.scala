@@ -2,8 +2,6 @@ package banque
 
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
-import scala.concurrent.Await
-import scala.concurrent.duration._
 
 object Main extends App {
   val system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "BankingSystem")

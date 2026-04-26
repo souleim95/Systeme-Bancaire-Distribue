@@ -1,8 +1,5 @@
 package petri
 
-import scala.collection.mutable
-import scala.io.StdIn
-
 /**
  * Trace d'exécution d'une transition
  */

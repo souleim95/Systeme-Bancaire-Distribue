@@ -129,7 +129,7 @@ val petriNet = BankingPetriNet.createSingleAccountNet()
 val checker = new LTLModelChecker(petriNet)
 
 // "Toujours, il existe une possibilité de progression"
-val result = checker.check("G true")
+val result = checker.check("G enabled")
 
 if (result.isValid) {
   println("✓ Pas de deadlock détecté")
@@ -193,7 +193,7 @@ object LTLProperties {
       "G (has_transferInitiated_p -> F (has_transferCompleted_p))"
     
     // Prévention de deadlock
-    val noDeadlock = "F true"
+    val noDeadlock = "G enabled"
     
     // Validité des comptes
     val accountValid = "G (has_sourceAvailable_p | has_destAvailable_p)"
@@ -211,7 +211,7 @@ object Safety {
 
 object Liveness {
   val eventuallyHappens = "F true"
-  val alwaysCanProgress = "G true"
+  val alwaysCanProgress = "G enabled"
 }
 ```
 
@@ -381,7 +381,7 @@ val checker = new LTLModelChecker(petriNet)
 
 // 3. Définir les propriétés à vérifier
 val properties = List(
-  ("No deadlock", "G true"),
+  ("No deadlock", "G enabled"),
   ("Account available", "has_sourceAvailable_p"),
   ("Transfer eventually completes", "F has_transferCompleted_p"),
   ("Safety: if locked then will unlock", 

@@ -76,9 +76,9 @@ object Banque {
             replyTo ! OperationEchouee("Solde initial ne peut pas etre negatif", System.currentTimeMillis())
             Behaviors.same
           } else {
-            val novaCteur = context.spawn(Compte(accountId, soldeInitial), s"compte-$accountId")
+            val compteActor = context.spawn(Compte(accountId, soldeInitial), s"compte-$accountId")
             val newState = state.copy(
-              comptes = state.comptes + (accountId -> novaCteur),
+              comptes = state.comptes + (accountId -> compteActor),
               soldes = state.soldes + (accountId -> soldeInitial)
             )
             context.log.info(s"Compte $accountId cree par la banque avec solde $soldeInitial")
@@ -94,9 +94,7 @@ object Banque {
                 replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
                 Behaviors.same
               } else {
-                val replyAdapter = context.messageAdapter[ReponseBancaire] { response =>
-                  ForwardResponse(accountId, replyTo, response)
-                }
+                val replyAdapter = forwardResponseActor(context, accountId, replyTo)
                 state.comptes(accountId) ! Deposer(accountId, montant, replyAdapter)
                 Behaviors.same
               }
@@ -106,9 +104,7 @@ object Banque {
                 replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
                 Behaviors.same
               } else {
-                val replyAdapter = context.messageAdapter[ReponseBancaire] { response =>
-                  ForwardResponse(accountId, replyTo, response)
-                }
+                val replyAdapter = forwardResponseActor(context, accountId, replyTo)
                 state.comptes(accountId) ! Retirer(accountId, montant, replyAdapter)
                 Behaviors.same
               }
@@ -122,9 +118,13 @@ object Banque {
                 Behaviors.same
               } else {
                 val compteDestinaire = state.comptes(accountIdDestination)
-                val replyAdapter = context.messageAdapter[ReponseBancaire] { response =>
-                  ForwardTransferResponse(accountIdSource, accountIdDestination, montantSource, replyTo, response)
-                }
+                val replyAdapter = forwardTransferResponseActor(
+                  context,
+                  accountIdSource,
+                  accountIdDestination,
+                  montantSource,
+                  replyTo
+                )
                 state.comptes(accountIdSource) ! Virement(
                   accountIdSource,
                   montantSource,
@@ -140,9 +140,7 @@ object Banque {
                 replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
                 Behaviors.same
               } else {
-                val replyAdapter = context.messageAdapter[ReponseBancaire] { response =>
-                  ForwardResponse(accountId, replyTo, response)
-                }
+                val replyAdapter = forwardResponseActor(context, accountId, replyTo)
                 state.comptes(accountId) ! ConsulterSolde(accountId, replyAdapter)
                 Behaviors.same
               }
@@ -152,9 +150,7 @@ object Banque {
                 replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
                 Behaviors.same
               } else {
-                val replyAdapter = context.messageAdapter[ReponseBancaire] { response =>
-                  ForwardResponse(accountId, replyTo, response)
-                }
+                val replyAdapter = forwardResponseActor(context, accountId, replyTo)
                 state.comptes(accountId) ! ConsulterHistorique(accountId, replyAdapter)
                 Behaviors.same
               }
@@ -164,9 +160,7 @@ object Banque {
                 replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
                 Behaviors.same
               } else {
-                val replyAdapter = context.messageAdapter[ReponseBancaire] { response =>
-                  ForwardResponse(accountId, replyTo, response)
-                }
+                val replyAdapter = forwardResponseActor(context, accountId, replyTo)
                 state.comptes(accountId) ! FermerCompte(accountId, replyAdapter)
                 Behaviors.same
               }
@@ -226,6 +220,32 @@ object Banque {
           }
       }
     }
+
+  private def forwardResponseActor(
+    context: akka.actor.typed.scaladsl.ActorContext[CommandeBanque],
+    accountId: String,
+    originalReplyTo: ActorRef[ReponseBancaire]
+  ): ActorRef[ReponseBancaire] =
+    context.spawnAnonymous(
+      Behaviors.receiveMessage[ReponseBancaire] { response =>
+        context.self ! ForwardResponse(accountId, originalReplyTo, response)
+        Behaviors.stopped
+      }
+    )
+
+  private def forwardTransferResponseActor(
+    context: akka.actor.typed.scaladsl.ActorContext[CommandeBanque],
+    sourceAccountId: String,
+    destinationAccountId: String,
+    montant: Double,
+    originalReplyTo: ActorRef[ReponseBancaire]
+  ): ActorRef[ReponseBancaire] =
+    context.spawnAnonymous(
+      Behaviors.receiveMessage[ReponseBancaire] { response =>
+        context.self ! ForwardTransferResponse(sourceAccountId, destinationAccountId, montant, originalReplyTo, response)
+        Behaviors.stopped
+      }
+    )
 
   private def updateStateFromResponse(
     state: BanqueState,

@@ -1,16 +1,24 @@
 package banque
 
 import akka.actor.typed.Behavior
+import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.Behaviors
 
 object Compte {
 
   // ============ ETAT INTERNE DU COMPTE ============
+  private case class PendingTransfer(
+    destinationId: String,
+    montant: Double,
+    replyTo: ActorRef[ReponseBancaire]
+  )
+
   private case class CompteState(
     accountId: String,
     solde: Double,
     historique: List[Enregistrement] = List(),
-    estActif: Boolean = true
+    estActif: Boolean = true,
+    pendingTransfers: Map[TransactionId, PendingTransfer] = Map.empty
   )
 
   // ============ BEHAVIOR DE L'ACTEUR ============
@@ -133,27 +141,85 @@ object Compte {
             Behaviors.same
           } else {
             val txId = TransactionId()
-            val timestamp = System.currentTimeMillis()
             val nouveauSolde = state.solde - montantSource
 
-            // Envoyer au compte destinataire
-            destinataire ! ReceptionVirement(accountIdSource, montantSource, txId, replyTo)
-
-            // Enregistrer l'envoi localement
-            val enregistrement = Enregistrement(
-              txId,
-              VIREMENT_ENVOI,
-              montantSource,
-              nouveauSolde,
-              timestamp,
-              s"Virement vers $accountIdDestination: $montantSource"
+            val confirmationReceiver = context.spawnAnonymous(
+              Behaviors.receiveMessage[ReponseBancaire] { response =>
+                context.self ! ConfirmationVirement(
+                  accountIdSource,
+                  accountIdDestination,
+                  montantSource,
+                  txId,
+                  replyTo,
+                  response
+                )
+                Behaviors.stopped
+              }
             )
+
+            // Le montant est reserve immediatement pour empecher un second debit concurrent.
+            destinataire ! ReceptionVirement(accountIdSource, montantSource, txId, confirmationReceiver)
+
             val newState = state.copy(
               solde = nouveauSolde,
-              historique = state.historique :+ enregistrement
+              pendingTransfers = state.pendingTransfers + (
+                txId -> PendingTransfer(accountIdDestination, montantSource, replyTo)
+              )
             )
-            context.log.info(s"Virement de $montantSource de ${state.accountId} vers $accountIdDestination")
+            context.log.info(s"Virement de $montantSource de ${state.accountId} vers $accountIdDestination en attente de confirmation")
             traiterCommandes(newState)
+          }
+
+        // ========== CONFIRMATION VIREMENT ==========
+        case ConfirmationVirement(accountIdSource, _, _, txId, originalReplyTo, destinationResponse) =>
+          if (accountIdSource != state.accountId) {
+            originalReplyTo ! OperationEchouee(s"Compte source $accountIdSource non trouve", System.currentTimeMillis())
+            Behaviors.same
+          } else {
+            state.pendingTransfers.get(txId) match {
+              case None =>
+                originalReplyTo ! OperationEchouee("Virement inconnu ou deja traite", System.currentTimeMillis())
+                Behaviors.same
+
+              case Some(pending) =>
+                val timestamp = System.currentTimeMillis()
+                destinationResponse match {
+                  case _: OperationReussie =>
+                    val enregistrement = Enregistrement(
+                      txId,
+                      VIREMENT_ENVOI,
+                      pending.montant,
+                      state.solde,
+                      timestamp,
+                      s"Virement vers ${pending.destinationId}: ${pending.montant}"
+                    )
+                    val newState = state.copy(
+                      historique = state.historique :+ enregistrement,
+                      pendingTransfers = state.pendingTransfers - txId
+                    )
+                    context.log.info(s"Virement de ${pending.montant} de ${state.accountId} vers ${pending.destinationId} confirme")
+                    pending.replyTo ! OperationReussie(txId, state.solde, timestamp)
+                    traiterCommandes(newState)
+
+                  case OperationEchouee(raison, _) =>
+                    val refundedState = state.copy(
+                      solde = state.solde + pending.montant,
+                      pendingTransfers = state.pendingTransfers - txId
+                    )
+                    context.log.warn(s"Virement de ${pending.montant} de ${state.accountId} vers ${pending.destinationId} annule: $raison")
+                    pending.replyTo ! OperationEchouee(s"Virement annule: $raison", timestamp)
+                    traiterCommandes(refundedState)
+
+                  case _ =>
+                    val refundedState = state.copy(
+                      solde = state.solde + pending.montant,
+                      pendingTransfers = state.pendingTransfers - txId
+                    )
+                    context.log.warn(s"Virement de ${pending.montant} de ${state.accountId} vers ${pending.destinationId} annule: reponse inattendue")
+                    pending.replyTo ! OperationEchouee("Virement annule: reponse destinataire inattendue", timestamp)
+                    traiterCommandes(refundedState)
+                }
+            }
           }
 
         // ========== RECEPTION VIREMENT ==========
@@ -203,6 +269,9 @@ object Compte {
             Behaviors.same
           } else if (!state.estActif) {
             replyTo ! OperationEchouee("Compte deja ferme", System.currentTimeMillis())
+            Behaviors.same
+          } else if (state.pendingTransfers.nonEmpty) {
+            replyTo ! OperationEchouee("Operation en cours, fermeture impossible", System.currentTimeMillis())
             Behaviors.same
           } else {
             val timestamp = System.currentTimeMillis()

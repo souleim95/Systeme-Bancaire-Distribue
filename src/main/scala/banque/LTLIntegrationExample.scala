@@ -31,10 +31,10 @@ object LTLIntegrationExample extends App {
   
   val bankingProperties = Map(
     "account_availability" -> "G (has_ACC-001_available | has_ACC-002_available | has_ACC-003_available)",
-    "no_permanent_deadlock" -> "G true",
+    "no_permanent_deadlock" -> "G enabled",
     "deposit_safety" -> "G (has_ACC-001_available | has_ACC-001_locked)",
     "account_safety" -> "G (has_ACC-002_available | has_ACC-002_locked)",
-    "always_progress" -> "F true"
+    "always_progress" -> "G enabled"
   )
   
   println("Propriétés de sécurité:")
@@ -89,7 +89,7 @@ object LTLIntegrationExample extends App {
   
   val criticalScenarios = List(
     // Absence de deadlock
-    ("No deadlock at initial state", "true"),
+    ("No deadlock at initial state", "enabled"),
     
     // Responsabilité des comptes
     ("Accounts exist", "G (true)"),
@@ -101,7 +101,7 @@ object LTLIntegrationExample extends App {
     ("No corruption", "G (!false)"),
     
     // Vivacité: toujours une transition possible
-    ("Always can progress", "G (true)")
+    ("Always can progress", "G enabled")
   )
   
   println("Critères critiques:")

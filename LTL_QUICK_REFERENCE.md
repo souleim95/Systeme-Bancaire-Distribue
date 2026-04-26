@@ -106,8 +106,8 @@ F G p          -- Finalement p reste vrai
 
 ### Prévention de deadlock
 ```
-G (X true)     -- Toujours une transition possible
-F true         -- Quelque chose se produit
+G enabled      -- Toujours au moins une transition possible
+G !deadlock    -- Aucun état bloqué atteignable
 ```
 
 ### Atomicité des transactions
