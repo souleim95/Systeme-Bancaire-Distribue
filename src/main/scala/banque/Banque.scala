@@ -31,6 +31,21 @@ object Banque {
     replyTo: ActorRef[ReponseBancaire]
   ) extends CommandeBanque
 
+  // ============ MESSAGES INTERNES ============
+  private case class ForwardResponse(
+    accountId: String,
+    originalReplyTo: ActorRef[ReponseBancaire],
+    response: ReponseBancaire
+  ) extends CommandeBanque
+
+  private case class ForwardTransferResponse(
+    sourceAccountId: String,
+    destinationAccountId: String,
+    montant: Double,
+    originalReplyTo: ActorRef[ReponseBancaire],
+    response: ReponseBancaire
+  ) extends CommandeBanque
+
   // ============ REPONSES ============
   case class ListeComptes(comptes: Map[String, Double])
 
@@ -61,9 +76,9 @@ object Banque {
             replyTo ! OperationEchouee("Solde initial ne peut pas etre negatif", System.currentTimeMillis())
             Behaviors.same
           } else {
-            val novaCteur = context.spawn(Compte(accountId, soldeInitial), s"compte-$accountId")
+            val compteActor = context.spawn(Compte(accountId, soldeInitial), s"compte-$accountId")
             val newState = state.copy(
-              comptes = state.comptes + (accountId -> novaCteur),
+              comptes = state.comptes + (accountId -> compteActor),
               soldes = state.soldes + (accountId -> soldeInitial)
             )
             context.log.info(s"Compte $accountId cree par la banque avec solde $soldeInitial")
@@ -79,7 +94,8 @@ object Banque {
                 replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
                 Behaviors.same
               } else {
-                state.comptes(accountId) ! Deposer(accountId, montant, replyTo)
+                val replyAdapter = forwardResponseActor(context, accountId, replyTo)
+                state.comptes(accountId) ! Deposer(accountId, montant, replyAdapter)
                 Behaviors.same
               }
 
@@ -88,7 +104,8 @@ object Banque {
                 replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
                 Behaviors.same
               } else {
-                state.comptes(accountId) ! Retirer(accountId, montant, replyTo)
+                val replyAdapter = forwardResponseActor(context, accountId, replyTo)
+                state.comptes(accountId) ! Retirer(accountId, montant, replyAdapter)
                 Behaviors.same
               }
 
@@ -101,12 +118,19 @@ object Banque {
                 Behaviors.same
               } else {
                 val compteDestinaire = state.comptes(accountIdDestination)
+                val replyAdapter = forwardTransferResponseActor(
+                  context,
+                  accountIdSource,
+                  accountIdDestination,
+                  montantSource,
+                  replyTo
+                )
                 state.comptes(accountIdSource) ! Virement(
                   accountIdSource,
                   montantSource,
                   accountIdDestination,
                   compteDestinaire,
-                  replyTo
+                  replyAdapter
                 )
                 Behaviors.same
               }
@@ -116,7 +140,8 @@ object Banque {
                 replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
                 Behaviors.same
               } else {
-                state.comptes(accountId) ! ConsulterSolde(accountId, replyTo)
+                val replyAdapter = forwardResponseActor(context, accountId, replyTo)
+                state.comptes(accountId) ! ConsulterSolde(accountId, replyAdapter)
                 Behaviors.same
               }
 
@@ -125,7 +150,8 @@ object Banque {
                 replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
                 Behaviors.same
               } else {
-                state.comptes(accountId) ! ConsulterHistorique(accountId, replyTo)
+                val replyAdapter = forwardResponseActor(context, accountId, replyTo)
+                state.comptes(accountId) ! ConsulterHistorique(accountId, replyAdapter)
                 Behaviors.same
               }
 
@@ -134,7 +160,8 @@ object Banque {
                 replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
                 Behaviors.same
               } else {
-                state.comptes(accountId) ! FermerCompte(accountId, replyTo)
+                val replyAdapter = forwardResponseActor(context, accountId, replyTo)
+                state.comptes(accountId) ! FermerCompte(accountId, replyAdapter)
                 Behaviors.same
               }
 
@@ -154,12 +181,35 @@ object Banque {
           replyTo ! SoldeGlobal(total, state.comptes.size)
           Behaviors.same
 
+        // ========== RÉPONSE COMPTE FORWARDÉE ==========
+        case ForwardResponse(accountId, originalReplyTo, response) =>
+          originalReplyTo ! response
+          val newState = updateStateFromResponse(state, accountId, response, context)
+          traiterCommandes(newState)
+
+        // ========== RÉPONSE VIREMENT FORWARDÉE ==========
+        case ForwardTransferResponse(sourceAccountId, destinationAccountId, montant, originalReplyTo, response) =>
+          originalReplyTo ! response
+          val newState = response match {
+            case _: OperationReussie =>
+              val soldeSource = state.soldes.getOrElse(sourceAccountId, 0.0)
+              val soldeDestination = state.soldes.getOrElse(destinationAccountId, 0.0)
+              state.copy(
+                soldes = state.soldes
+                  .updated(sourceAccountId, soldeSource - montant)
+                  .updated(destinationAccountId, soldeDestination + montant)
+              )
+            case _ => state
+          }
+          traiterCommandes(newState)
+
         // ========== SUPPRIMER COMPTE ==========
         case SupprimerCompteReq(accountId, replyTo) =>
           if (!state.comptes.contains(accountId)) {
             replyTo ! OperationEchouee(s"Compte $accountId non trouve", System.currentTimeMillis())
             Behaviors.same
           } else {
+            context.stop(state.comptes(accountId))
             val newState = state.copy(
               comptes = state.comptes - accountId,
               soldes = state.soldes - accountId
@@ -170,4 +220,50 @@ object Banque {
           }
       }
     }
+
+  private def forwardResponseActor(
+    context: akka.actor.typed.scaladsl.ActorContext[CommandeBanque],
+    accountId: String,
+    originalReplyTo: ActorRef[ReponseBancaire]
+  ): ActorRef[ReponseBancaire] =
+    context.spawnAnonymous(
+      Behaviors.receiveMessage[ReponseBancaire] { response =>
+        context.self ! ForwardResponse(accountId, originalReplyTo, response)
+        Behaviors.stopped
+      }
+    )
+
+  private def forwardTransferResponseActor(
+    context: akka.actor.typed.scaladsl.ActorContext[CommandeBanque],
+    sourceAccountId: String,
+    destinationAccountId: String,
+    montant: Double,
+    originalReplyTo: ActorRef[ReponseBancaire]
+  ): ActorRef[ReponseBancaire] =
+    context.spawnAnonymous(
+      Behaviors.receiveMessage[ReponseBancaire] { response =>
+        context.self ! ForwardTransferResponse(sourceAccountId, destinationAccountId, montant, originalReplyTo, response)
+        Behaviors.stopped
+      }
+    )
+
+  private def updateStateFromResponse(
+    state: BanqueState,
+    requestedAccountId: String,
+    response: ReponseBancaire,
+    context: akka.actor.typed.scaladsl.ActorContext[CommandeBanque]
+  ): BanqueState = response match {
+    case OperationReussie(_, nouveauSolde, _) =>
+      state.copy(soldes = state.soldes.updated(requestedAccountId, nouveauSolde))
+    case SoldeActuel(accountId, solde, _) =>
+      state.copy(soldes = state.soldes.updated(accountId, solde))
+    case CompteFermé(accountId, _, _) =>
+      state.comptes.get(accountId).foreach(context.stop)
+      state.copy(
+        comptes = state.comptes - accountId,
+        soldes = state.soldes - accountId
+      )
+    case _ =>
+      state
+  }
 }

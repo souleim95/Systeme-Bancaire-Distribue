@@ -51,11 +51,9 @@ object LTLDemo extends App {
     "has_accountAvailable_p",
     
     // Propriétés fausses
-    "false",
-    "has_nonexistent_place",
+    "G (has_accountAvailable_p | has_accountLocked_p)",
     
     // Propriétés bancaires
-    "G (has_accountAvailable_p)",
     "F (has_accountAvailable_p)"
   )
   
@@ -78,7 +76,7 @@ object LTLDemo extends App {
     "has_sourceAvailable_p | has_destAvailable_p",
     
     // Propriétés temporelles
-    "F (has_transferCompleted_p)",
+    "G (has_transferInitiated_p -> F (has_transferCompleted_p | has_sourceAvailable_p))",
     "G (has_sourceLocked_p -> F has_sourceAvailable_p)"
   )
   

@@ -89,13 +89,8 @@ class PetriNet(
 ) {
   
   // Index pour accès rapide
-  private val incomingArcs: Map[String, List[Arc]] = 
-    arcs.filter(_.target.endsWith("_t")).groupBy(_.target) ++
-    arcs.filter(!_.target.endsWith("_t")).groupBy(_.target)
-  
-  private val outgoingArcs: Map[String, List[Arc]] =
-    arcs.filter(_.source.endsWith("_t")).groupBy(_.source) ++
-    arcs.filter(!_.source.endsWith("_t")).groupBy(_.source)
+  private val incomingArcs: Map[String, List[Arc]] = arcs.groupBy(_.target)
+  private val outgoingArcs: Map[String, List[Arc]] = arcs.groupBy(_.source)
   
   /**
    * Obtenir les transitions activées pour un marquage donné
@@ -108,7 +103,7 @@ class PetriNet(
    * Vérifier si une transition peut être activée
    */
   def isTransitionEnabled(transId: String, marking: Marking): Boolean = {
-    val trans = transitions.getOrElse(transId, return false)
+    if (!transitions.contains(transId)) return false
     
     val inArcs = incomingArcs.getOrElse(transId, List())
     
@@ -139,7 +134,7 @@ class PetriNet(
     
     // Consommer les jetons des places d'entrée
     val inArcs = incomingArcs.getOrElse(transId, List())
-    for (arc <- inArcs if places.contains(arc.source)) {
+    for (arc <- inArcs if places.contains(arc.source) && !arc.isInhibitor) {
       newMarking = newMarking.decrement(arc.source, arc.weight)
     }
     

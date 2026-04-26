@@ -59,6 +59,11 @@ class LTLTests extends AnyFlatSpec with Matchers {
     // Simplement vérifier que ça parse sans erreur
     formula should not be null
   }
+
+  it should "parser les symboles unicode usuels" in {
+    val formula = LTLParser.parse("G (p ∧ ¬q → F r)")
+    formula shouldBe Globally(Or(Not(And(Atom("p"), Not(Atom("q")))), Finally(Atom("r"))))
+  }
   
   it should "rejeter les formules invalides" in {
     assertThrows[ParseException] {
@@ -113,7 +118,19 @@ class LTLTests extends AnyFlatSpec with Matchers {
     results should have size 3
     results.count(_.isValid) should be >= 1
   }
-  
+
+  it should "retourner un contre-exemple en cas de deadlock" in {
+    val places = Map("p" -> Place("p", "P", 0))
+    val transitions = Map("t" -> Transition("t", "T"))
+    val arcs = List(Arc("p", "t", 1))
+    val petriNet = PetriNet(places, transitions, arcs, Marking(Map.empty))
+    val checker = new LTLModelChecker(petriNet)
+
+    val result = checker.check("G enabled")
+    result.isValid should be(false)
+    result.counterExample should not be empty
+  }
+
   it should "afficher correctement les résultats" in {
     val petriNet = BankingPetriNet.createSingleAccountNet()
     val checker = new LTLModelChecker(petriNet)
@@ -131,6 +148,7 @@ class LTLTests extends AnyFlatSpec with Matchers {
   "Les formules de propriétés bancaires" should "être correctement définies" in {
     val accountAvailability = LTLProperties.Banking.accountAvailability
     accountAvailability should include("has_accountAvailable_p")
+    LTLProperties.Banking.noDeadlock shouldEqual "G enabled"
   }
   
   "La conversion de formules" should "produire un string lisible" in {

@@ -78,6 +78,16 @@ case class ReceptionVirement(
   replyTo: ActorRef[ReponseBancaire]
 ) extends CommandeBancaire
 
+// Message interne: confirmation recue par le compte source apres reponse du destinataire
+case class ConfirmationVirement(
+  accountIdSource: String,
+  accountIdDestination: String,
+  montant: Double,
+  transactionId: TransactionId,
+  originalReplyTo: ActorRef[ReponseBancaire],
+  destinationResponse: ReponseBancaire
+) extends CommandeBancaire
+
 // ============ LES RÉPONSES ============
 
 sealed trait ReponseBancaire

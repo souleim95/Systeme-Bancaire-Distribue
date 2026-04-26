@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Systeme Bancaire Distribue</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Akka Typed + Reseaux de Petri + LTL</p>
+          <h1>Systeme Bancaire Distribue</h1>
+        </div>
+        <div class="top-actions">
+          <button id="refreshBtn" type="button">Actualiser</button>
+          <button id="resetBtn" type="button" class="secondary">Reinitialiser demo</button>
+        </div>
+      </section>
+
+      <section class="grid metrics" id="metrics">
+        <article>
+          <span>Total banque</span>
+          <strong id="totalValue">0 EUR</strong>
+        </article>
+        <article>
+          <span>Comptes actifs</span>
+          <strong id="countValue">0</strong>
+        </article>
+        <article>
+          <span>Etats Petri</span>
+          <strong id="stateValue">-</strong>
+        </article>
+        <article>
+          <span>Verification</span>
+          <strong id="formalValue">-</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <aside class="panel">
+          <div class="panel-header">
+            <h2>Operations</h2>
+          </div>
+
+          <form id="createForm" class="form-block">
+            <h3>Creer un compte</h3>
+            <label>
+              Identifiant
+              <input name="accountId" value="ACC-004" autocomplete="off" />
+            </label>
+            <label>
+              Solde initial
+              <input name="soldeInitial" type="number" value="250" min="0" step="10" />
+            </label>
+            <button type="submit">Creer</button>
+          </form>
+
+          <form id="depositForm" class="form-block">
+            <h3>Depot</h3>
+            <label>
+              Compte
+              <select name="accountId" data-account-select></select>
+            </label>
+            <label>
+              Montant
+              <input name="montant" type="number" value="100" min="1" step="10" />
+            </label>
+            <button type="submit">Deposer</button>
+          </form>
+
+          <form id="withdrawForm" class="form-block">
+            <h3>Retrait</h3>
+            <label>
+              Compte
+              <select name="accountId" data-account-select></select>
+            </label>
+            <label>
+              Montant
+              <input name="montant" type="number" value="50" min="1" step="10" />
+            </label>
+            <button type="submit">Retirer</button>
+          </form>
+
+          <form id="transferForm" class="form-block">
+            <h3>Virement</h3>
+            <label>
+              Source
+              <select name="source" data-account-select></select>
+            </label>
+            <label>
+              Destination
+              <select name="destination" data-account-select></select>
+            </label>
+            <label>
+              Montant
+              <input name="montant" type="number" value="100" min="1" step="10" />
+            </label>
+            <button type="submit">Virer</button>
+          </form>
+        </aside>
+
+        <section class="main-panel">
+          <div class="panel-header">
+            <h2>Comptes</h2>
+            <p id="statusText">Pret</p>
+          </div>
+          <div id="accountsList" class="accounts-list"></div>
+
+          <div class="split">
+            <section class="panel nested">
+              <div class="panel-header">
+                <h2>Analyse formelle</h2>
+                <button id="formalBtn" type="button" class="secondary">Relancer</button>
+              </div>
+              <div id="formalReport" class="formal-report"></div>
+            </section>
+
+            <section class="panel nested">
+              <div class="panel-header">
+                <h2>Verifier LTL</h2>
+              </div>
+              <form id="ltlForm" class="ltl-form">
+                <input name="formula" value="G enabled" autocomplete="off" />
+                <button type="submit">Verifier</button>
+              </form>
+              <div id="ltlResult" class="ltl-result"></div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

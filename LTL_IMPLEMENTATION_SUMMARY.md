@@ -163,7 +163,7 @@ sbt "runMain banque.LTLIntegrationExample"
 - **Propriétés testées**: 5+
 
 ### Réseau virement
-- **États**: 12-15
+- **États**: 3
 - **Temps**: ~100ms
 - **Propriétés testées**: 6+
 
@@ -193,7 +193,7 @@ G (has_depositPending -> F has_accountAvailable)
 
 ### 4. Vivacité globale
 ```
-F true
+G enabled
 ```
 
 ### 5. Transferts atomiques

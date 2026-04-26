@@ -1,7 +1,6 @@
 package banque
 
-import akka.actor.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
-import akka.actor.typed.ActorRef
+import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers._
@@ -114,6 +113,23 @@ class CompteSpec extends AnyWordSpecLike with BeforeAndAfterAll {
       val response = replyProbe.expectMessageType[OperationEchouee]
 
       response.raison shouldEqual "Solde insuffisant (30.0)"
+    }
+
+    "annuler un virement et rembourser la source si le destinataire est ferme" in {
+      val replyProbe = testKit.createTestProbe[ReponseBancaire]()
+      val compteSource = testKit.spawn(Compte("ACC014", 100.0))
+      val compteDestination = testKit.spawn(Compte("ACC015", 50.0))
+
+      compteDestination ! FermerCompte("ACC015", replyProbe.ref)
+      replyProbe.expectMessageType[CompteFermé]
+
+      compteSource ! Virement("ACC014", 40.0, "ACC015", compteDestination, replyProbe.ref)
+      val response = replyProbe.expectMessageType[OperationEchouee]
+      response.raison should include("Virement annule")
+
+      compteSource ! ConsulterSolde("ACC014", replyProbe.ref)
+      val solde = replyProbe.expectMessageType[SoldeActuel]
+      solde.solde shouldEqual 100.0
     }
 
     "permettre de fermer un compte" in {

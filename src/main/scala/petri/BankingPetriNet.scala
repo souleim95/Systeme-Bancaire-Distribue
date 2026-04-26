@@ -39,12 +39,11 @@ object BankingPetriNet {
     val arcs = List(
       // Dépôt
       Arc("accountAvailable_p", "deposit_t", 1),
-      Arc("deposit_t", "accountAvailable_p", 1),
+      Arc("deposit_t", "accountLocked_p", 1),
       
       // Retrait
       Arc("accountAvailable_p", "withdraw_t", 1),
-      Arc("withdrawValid_p", "withdraw_t", 1),
-      Arc("withdraw_t", "accountAvailable_p", 1),
+      Arc("withdraw_t", "accountLocked_p", 1),
       
       // Libérer le compte
       Arc("accountLocked_p", "releaseAccount_t", 1),
@@ -97,19 +96,25 @@ object BankingPetriNet {
       Arc("sourceLocked_p", "completeTransfer_t", 1),
       Arc("destLocked_p", "completeTransfer_t", 1),
       Arc("completeTransfer_t", "transferCompleted_p", 1),
-      Arc("completeTransfer_t", "sourceAvailable_p", 1),
-      Arc("completeTransfer_t", "destAvailable_p", 1),
+      
+      // Liberer les comptes apres confirmation du virement
+      Arc("transferCompleted_p", "releaseBothAccounts_t", 1),
+      Arc("releaseBothAccounts_t", "sourceAvailable_p", 1),
+      Arc("releaseBothAccounts_t", "destAvailable_p", 1),
+      Arc("releaseBothAccounts_t", "sourceValid_p", 1),
       
       // Annuler le virement
       Arc("transferInitiated_p", "abortTransfer_t", 1),
       Arc("sourceLocked_p", "abortTransfer_t", 1),
       Arc("destLocked_p", "abortTransfer_t", 1),
       Arc("abortTransfer_t", "sourceAvailable_p", 1),
-      Arc("abortTransfer_t", "destAvailable_p", 1)
+      Arc("abortTransfer_t", "destAvailable_p", 1),
+      Arc("abortTransfer_t", "sourceValid_p", 1)
     )
     
     val initialMarking = Marking(Map(
       "sourceAvailable_p" -> 1,
+      "sourceValid_p" -> 1,
       "destAvailable_p" -> 1
     ))
     
@@ -129,17 +134,19 @@ object BankingPetriNet {
     
     // Créer les places pour chaque compte
     for (accountId <- accountIds) {
-      places = places + (
+      places = places ++ Map(
         s"${accountId}_available" -> Place(s"${accountId}_available", s"$accountId Available", 1),
         s"${accountId}_valid" -> Place(s"${accountId}_valid", s"$accountId Valid", 0),
         s"${accountId}_locked" -> Place(s"${accountId}_locked", s"$accountId Locked", 0)
       )
-      initialMarkingMap = initialMarkingMap + (s"${accountId}_available" -> 1)
+      initialMarkingMap = initialMarkingMap +
+        (s"${accountId}_available" -> 1) +
+        (s"${accountId}_valid" -> 1)
     }
     
     // Créer les transitions pour chaque compte
     for (accountId <- accountIds) {
-      transitions = transitions + (
+      transitions = transitions ++ Map(
         s"${accountId}_deposit_t" -> Transition(s"${accountId}_deposit_t", s"Deposit to $accountId"),
         s"${accountId}_withdraw_t" -> Transition(s"${accountId}_withdraw_t", s"Withdraw from $accountId"),
         s"${accountId}_release_t" -> Transition(s"${accountId}_release_t", s"Release $accountId")
@@ -150,12 +157,13 @@ object BankingPetriNet {
     for (accountId <- accountIds) {
       // Dépôt
       arcs = arcs :+ Arc(s"${accountId}_available", s"${accountId}_deposit_t", 1)
-      arcs = arcs :+ Arc(s"${accountId}_deposit_t", s"${accountId}_available", 1)
+      arcs = arcs :+ Arc(s"${accountId}_deposit_t", s"${accountId}_locked", 1)
       
       // Retrait
       arcs = arcs :+ Arc(s"${accountId}_available", s"${accountId}_withdraw_t", 1)
       arcs = arcs :+ Arc(s"${accountId}_valid", s"${accountId}_withdraw_t", 1)
-      arcs = arcs :+ Arc(s"${accountId}_withdraw_t", s"${accountId}_available", 1)
+      arcs = arcs :+ Arc(s"${accountId}_withdraw_t", s"${accountId}_locked", 1)
+      arcs = arcs :+ Arc(s"${accountId}_withdraw_t", s"${accountId}_valid", 1)
       
       // Libérer le compte
       arcs = arcs :+ Arc(s"${accountId}_locked", s"${accountId}_release_t", 1)
@@ -167,17 +175,29 @@ object BankingPetriNet {
       val source = accountIds(i)
       val dest = accountIds(j)
       val transId = s"transfer_${source}_to_${dest}_t"
+      val releaseTransId = s"release_transfer_${source}_to_${dest}_t"
+      val pendingPlaceId = s"transfer_${source}_to_${dest}_pending"
       
-      transitions = transitions + (transId -> Transition(transId, s"Transfer $source -> $dest"))
+      places = places + (pendingPlaceId -> Place(pendingPlaceId, s"Transfer $source -> $dest Pending", 0))
+      transitions = transitions +
+        (transId -> Transition(transId, s"Transfer $source -> $dest")) +
+        (releaseTransId -> Transition(releaseTransId, s"Release transfer $source -> $dest"))
       
       // Initier le virement
       arcs = arcs :+ Arc(s"${source}_available", transId, 1)
       arcs = arcs :+ Arc(s"${source}_valid", transId, 1)
       arcs = arcs :+ Arc(s"${dest}_available", transId, 1)
+      arcs = arcs :+ Arc(transId, pendingPlaceId, 1)
       arcs = arcs :+ Arc(transId, s"${source}_locked", 1)
       arcs = arcs :+ Arc(transId, s"${dest}_locked", 1)
-      arcs = arcs :+ Arc(transId, s"${source}_available", 1)
-      arcs = arcs :+ Arc(transId, s"${dest}_available", 1)
+
+      // Confirmer et liberer les comptes concernes
+      arcs = arcs :+ Arc(pendingPlaceId, releaseTransId, 1)
+      arcs = arcs :+ Arc(s"${source}_locked", releaseTransId, 1)
+      arcs = arcs :+ Arc(s"${dest}_locked", releaseTransId, 1)
+      arcs = arcs :+ Arc(releaseTransId, s"${source}_available", 1)
+      arcs = arcs :+ Arc(releaseTransId, s"${source}_valid", 1)
+      arcs = arcs :+ Arc(releaseTransId, s"${dest}_available", 1)
     }
     
     val initialMarking = Marking(initialMarkingMap)

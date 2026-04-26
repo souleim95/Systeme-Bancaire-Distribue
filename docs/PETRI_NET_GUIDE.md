@@ -62,7 +62,7 @@ Modélise les virements entre deux comptes :
 
 **Places** :
 - `sourceAvailable_p`, `destAvailable_p` : Comptes disponibles
-- `sourceValid_p`, `destValid_p` : Validations
+- `sourceValid_p` : validation du debit source
 - `sourceLocked_p`, `destLocked_p` : Verrous
 - `transferInitiated_p` : Virement initié
 - `transferCompleted_p` : Virement complété
@@ -237,7 +237,7 @@ checker.printAnalysis()
 |-----------|----------|------|
 | Pas de deadlock | ✓ PASS | Mécanisme d'abort présent |
 | Vivacité | ✓ PASS | Toutes les transitions exécutables |
-| États | 12-15 | Dépend de la séquence |
+| États | 3 | Initial, virement initié, virement complété |
 
 ---
 
@@ -274,20 +274,19 @@ src/test/scala/banque/
 
 ---
 
-## Limitations et améliorations futures
+## Limitations et extensions possibles hors cahier des charges
 
 ### Limitations actuelles :
 - Les réseaux sont statiques (pas de création/suppression runtime)
-- Pas de visualisation graphique
-- Pas de vérification LTL complète
-- Pas d'optimisation pour très grands réseaux
+- Le front visualise les résultats et les opérations, mais pas le graphe de Petri complet
+- Pas d'optimisation spécifique pour très grands réseaux
 
-### Améliorations envisagées :
-- [ ] Réseaux colorés (avec données)
-- [ ] Vérification LTL/CTL
-- [ ] Génération de contre-exemples visuels
-- [ ] Exécution symbolique
-- [ ] Vérification d'équité
+### Extensions envisageables non requises :
+- Réseaux colorés (avec données)
+- Vérification CTL
+- Génération de contre-exemples visuels
+- Exécution symbolique
+- Vérification d'équité
 
 ---
 

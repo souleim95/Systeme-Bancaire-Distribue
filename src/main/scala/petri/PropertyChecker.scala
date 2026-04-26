@@ -22,7 +22,7 @@ class PropertyChecker(petriNet: PetriNet) {
    * Vérifier l'absence de deadlocks
    */
   def checkNoDeadlock: PropertyCheckResult = {
-    val (reachable, transitions) = petriNet.getReachabilityGraph
+    val (reachable, _) = petriNet.getReachabilityGraph
     
     // Vérifier si un état terminal (pas de transitions possibles) existe
     val deadlockStates = reachable.filter { marking =>
@@ -49,22 +49,23 @@ class PropertyChecker(petriNet: PetriNet) {
    * Vérifier la vivacité : chaque transition peut à un moment être exécutée
    */
   def checkLiveness: PropertyCheckResult = {
-    val (_, transitions) = petriNet.getReachabilityGraph
+    val (reachable, transitions) = petriNet.getReachabilityGraph
     
-    val allFirableTransitions = transitions.values.flatMap(_.keys).toSet
-    val unexecutableTransitions = petriNet.transitions.keys.filter(!allFirableTransitions.contains(_)).toList
+    val unexecutableTransitions = petriNet.transitions.keys.filter { transId =>
+      reachable.exists(marking => !canReachTransition(marking, transId, transitions))
+    }.toList
     
     if (unexecutableTransitions.isEmpty) {
       PropertyCheckResult(
         isValid = true,
         property = "Liveness",
-        message = "Toutes les transitions peuvent être exécutées"
+        message = "Toutes les transitions restent vivantes depuis chaque etat atteignable"
       )
     } else {
       PropertyCheckResult(
         isValid = false,
         property = "Liveness",
-        message = s"${unexecutableTransitions.size} transition(s) ne peuvent jamais être exécutée(s)",
+        message = s"${unexecutableTransitions.size} transition(s) ne sont pas vivantes",
         details = Some(unexecutableTransitions.mkString(", "))
       )
     }
@@ -238,6 +239,34 @@ class PropertyChecker(petriNet: PetriNet) {
       }
     }
     
+    false
+  }
+
+  private def canReachTransition(
+    from: Marking,
+    transitionId: String,
+    transitions: Map[Marking, Map[String, Marking]]
+  ): Boolean = {
+    val visited = scala.collection.mutable.Set[Marking]()
+    val queue = scala.collection.mutable.Queue[Marking]()
+
+    queue.enqueue(from)
+    visited.add(from)
+
+    while (queue.nonEmpty) {
+      val current = queue.dequeue()
+      if (petriNet.isTransitionEnabled(transitionId, current)) return true
+
+      transitions.get(current).foreach { reachableStates =>
+        reachableStates.values.foreach { nextMarking =>
+          if (!visited.contains(nextMarking)) {
+            visited.add(nextMarking)
+            queue.enqueue(nextMarking)
+          }
+        }
+      }
+    }
+
     false
   }
 }

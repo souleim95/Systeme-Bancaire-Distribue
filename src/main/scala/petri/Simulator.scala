@@ -1,8 +1,5 @@
 package petri
 
-import scala.collection.mutable
-import scala.io.StdIn
-
 /**
  * Trace d'exécution d'une transition
  */
@@ -168,7 +165,7 @@ class Simulator(petriNet: PetriNet) {
       step += 1
     }
     
-    println(s"\nSimulation complétée après {maxSteps} étapes")
+    println(s"\nSimulation complétée après $step étapes")
     println(s"État final: $currentMarking")
   }
   

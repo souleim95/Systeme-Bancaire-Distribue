@@ -29,9 +29,26 @@ Conformément aux exigences du projet, notre travail s'articule autour de 5 gran
 * **Modélisation Mathématique :** Réseaux de Pétri 
 * **Logique Formelle :** LTL (Linear Temporal Logic) 
 
+## Interface de demonstration
+
+Une interface web locale permet de piloter les comptes, lancer des operations et visualiser les resultats Petri/LTL :
+
+```bash
+sbt "runMain banque.FrontServer 8080"
+```
+
+Puis ouvrir `http://localhost:8080`.
+
+Guide de demonstration : [`docs/guide_interface_demo.md`](docs/guide_interface_demo.md).
+
 ## 📦 Livrables
 1. Bibliographie et sources de référence.
 2. Modèle Akka/Scala fonctionnel simulant le système.
 3. Réseau de Pétri représentant l'application.
-4. Rapport détaillé de vérification.
+4. Rapport détaillé de vérification : [`docs/rapport_verification.md`](docs/rapport_verification.md).
 5. Comparaison Simulation vs Modèle formel.
+
+
+## 🔗 Lien GitHub
+- Repository: `https://github.com/souleim95/Systeme-Bancaire-Distribue.git`
+- Branche de travail actuelle: `souleim_v2`
