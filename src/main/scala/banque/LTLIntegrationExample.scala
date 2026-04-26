@@ -30,7 +30,8 @@ object LTLIntegrationExample extends App {
   println("-"*80)
   
   val bankingProperties = Map(
-    "account_availability" -> "G (has_ACC-001_available | has_ACC-002_available | has_ACC-003_available)",
+    "account_status_consistency" ->
+      "G ((has_ACC-001_available | has_ACC-001_locked) & (has_ACC-002_available | has_ACC-002_locked) & (has_ACC-003_available | has_ACC-003_locked))",
     "no_permanent_deadlock" -> "G enabled",
     "deposit_safety" -> "G (has_ACC-001_available | has_ACC-001_locked)",
     "account_safety" -> "G (has_ACC-002_available | has_ACC-002_locked)",

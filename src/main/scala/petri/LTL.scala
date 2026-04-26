@@ -182,10 +182,50 @@ class LTLEvaluator(petriNet: PetriNet) {
     counterExample(formula).isEmpty
 
   def counterExample(formula: LTLFormula): Option[List[Marking]] = {
-    val (_, transitions) = petriNet.getReachabilityGraph
-    generateLassoPaths(petriNet.initialMarking, transitions)
-      .find(path => !evaluatePath(formula, path))
-      .map(_.asCounterExample)
+    val (reachable, transitions) = petriNet.getReachabilityGraph
+    fastCounterExample(formula, reachable, transitions).getOrElse {
+      generateLassoPaths(petriNet.initialMarking, transitions)
+        .find(path => !evaluatePath(formula, path))
+        .map(_.asCounterExample)
+    }
+  }
+
+  private def fastCounterExample(
+    formula: LTLFormula,
+    reachable: Set[Marking],
+    transitions: Map[Marking, Map[String, Marking]]
+  ): Option[Option[List[Marking]]] = formula match {
+    case f if statePredicate(f).isDefined =>
+      val predicate = statePredicate(f).get
+      Some(if (predicate(petriNet.initialMarking)) None else Some(List(petriNet.initialMarking)))
+
+    case Globally(inner) if statePredicate(inner).isDefined =>
+      val predicate = statePredicate(inner).get
+      val violation = reachable.find(marking => !predicate(marking))
+      Some(violation.map(marking => pathTo(marking, transitions).getOrElse(List(marking))))
+
+    case Finally(inner) if statePredicate(inner).isDefined =>
+      val predicate = statePredicate(inner).get
+      Some(findAvoidingCounterExample(petriNet.initialMarking, predicate, transitions))
+
+    case Globally(Or(Not(condition), Finally(goal)))
+        if statePredicate(condition).isDefined && statePredicate(goal).isDefined =>
+      val conditionPredicate = statePredicate(condition).get
+      val goalPredicate = statePredicate(goal).get
+      val violation = reachable.toList.view.flatMap { marking =>
+        if (conditionPredicate(marking)) {
+          findAvoidingCounterExample(marking, goalPredicate, transitions).map { suffix =>
+            val prefix = pathTo(marking, transitions).getOrElse(List(marking))
+            prefix.dropRight(1) ++ suffix
+          }
+        } else {
+          None
+        }
+      }.headOption
+      Some(violation)
+
+    case _ =>
+      None
   }
 
   private def evaluatePath(formula: LTLFormula, path: LassoPath): Boolean = {
@@ -238,6 +278,100 @@ class LTLEvaluator(petriNet: PetriNet) {
       evaluateCountAtom(prop.substring(6), marking)
     case prop =>
       marking(prop) > 0
+  }
+
+  private def statePredicate(formula: LTLFormula): Option[Marking => Boolean] = formula match {
+    case Atom(name) =>
+      Some(marking => evaluateAtom(name, marking))
+    case Not(inner) =>
+      statePredicate(inner).map(predicate => marking => !predicate(marking))
+    case And(left, right) =>
+      for {
+        leftPredicate <- statePredicate(left)
+        rightPredicate <- statePredicate(right)
+      } yield marking => leftPredicate(marking) && rightPredicate(marking)
+    case Or(left, right) =>
+      for {
+        leftPredicate <- statePredicate(left)
+        rightPredicate <- statePredicate(right)
+      } yield marking => leftPredicate(marking) || rightPredicate(marking)
+    case _ =>
+      None
+  }
+
+  private def pathTo(
+    target: Marking,
+    transitions: Map[Marking, Map[String, Marking]]
+  ): Option[List[Marking]] = {
+    val visited = scala.collection.mutable.Set[Marking](petriNet.initialMarking)
+    val previous = scala.collection.mutable.Map[Marking, Marking]()
+    val queue = scala.collection.mutable.Queue[Marking](petriNet.initialMarking)
+
+    while (queue.nonEmpty) {
+      val current = queue.dequeue()
+      if (current == target) {
+        var path = List(current)
+        var cursor = current
+        while (previous.contains(cursor)) {
+          cursor = previous(cursor)
+          path = cursor :: path
+        }
+        return Some(path)
+      }
+
+      transitions.getOrElse(current, Map.empty).values.foreach { next =>
+        if (!visited.contains(next)) {
+          visited.add(next)
+          previous(next) = current
+          queue.enqueue(next)
+        }
+      }
+    }
+
+    None
+  }
+
+  private def findAvoidingCounterExample(
+    start: Marking,
+    goalPredicate: Marking => Boolean,
+    transitions: Map[Marking, Map[String, Marking]]
+  ): Option[List[Marking]] = {
+    if (goalPredicate(start)) return None
+
+    val colors = scala.collection.mutable.Map[Marking, String]()
+
+    def dfs(current: Marking, stack: Vector[Marking]): Option[List[Marking]] = {
+      if (goalPredicate(current)) return None
+
+      colors(current) = "visiting"
+      val newStack = stack :+ current
+      val allNextStates = transitions.getOrElse(current, Map.empty).values.toList.distinct
+      val nextStates = allNextStates.filterNot(goalPredicate)
+
+      val result =
+        if (allNextStates.isEmpty) {
+          Some((newStack :+ current).toList)
+        } else if (nextStates.isEmpty) {
+          None
+        } else {
+          nextStates.iterator.flatMap { next =>
+            colors.get(next) match {
+              case Some("visiting") =>
+                val loopStart = newStack.indexOf(next)
+                Some((newStack.drop(loopStart) :+ next).toList)
+              case Some("done") =>
+                None
+              case _ =>
+                dfs(next, newStack)
+            }
+          }.toSeq.headOption
+        }
+
+      if (result.isEmpty) colors(current) = "done"
+      result
+    }
+
+    dfs(start, Vector.empty)
   }
 
   private def evaluateCountAtom(expression: String, marking: Marking): Boolean = {

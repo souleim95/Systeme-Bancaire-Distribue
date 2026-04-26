@@ -134,7 +134,7 @@ object BankingPetriNet {
     
     // Créer les places pour chaque compte
     for (accountId <- accountIds) {
-      places = places + (
+      places = places ++ Map(
         s"${accountId}_available" -> Place(s"${accountId}_available", s"$accountId Available", 1),
         s"${accountId}_valid" -> Place(s"${accountId}_valid", s"$accountId Valid", 0),
         s"${accountId}_locked" -> Place(s"${accountId}_locked", s"$accountId Locked", 0)
@@ -146,7 +146,7 @@ object BankingPetriNet {
     
     // Créer les transitions pour chaque compte
     for (accountId <- accountIds) {
-      transitions = transitions + (
+      transitions = transitions ++ Map(
         s"${accountId}_deposit_t" -> Transition(s"${accountId}_deposit_t", s"Deposit to $accountId"),
         s"${accountId}_withdraw_t" -> Transition(s"${accountId}_withdraw_t", s"Withdraw from $accountId"),
         s"${accountId}_release_t" -> Transition(s"${accountId}_release_t", s"Release $accountId")
@@ -188,9 +188,13 @@ object BankingPetriNet {
       arcs = arcs :+ Arc(s"${source}_valid", transId, 1)
       arcs = arcs :+ Arc(s"${dest}_available", transId, 1)
       arcs = arcs :+ Arc(transId, pendingPlaceId, 1)
+      arcs = arcs :+ Arc(transId, s"${source}_locked", 1)
+      arcs = arcs :+ Arc(transId, s"${dest}_locked", 1)
 
       // Confirmer et liberer les comptes concernes
       arcs = arcs :+ Arc(pendingPlaceId, releaseTransId, 1)
+      arcs = arcs :+ Arc(s"${source}_locked", releaseTransId, 1)
+      arcs = arcs :+ Arc(s"${dest}_locked", releaseTransId, 1)
       arcs = arcs :+ Arc(releaseTransId, s"${source}_available", 1)
       arcs = arcs :+ Arc(releaseTransId, s"${source}_valid", 1)
       arcs = arcs :+ Arc(releaseTransId, s"${dest}_available", 1)

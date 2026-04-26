@@ -31,7 +31,7 @@ Elements couverts :
 Resultats observes :
 - Reseau simple : 2 etats atteignables.
 - Reseau de virement : 3 etats atteignables.
-- Reseau complet a 3 comptes : 15 places, 21 transitions, 20 etats atteignables.
+- Reseau complet a 3 comptes : 15 places, 21 transitions, 216 etats atteignables.
 
 ## 3. Proprietes structurelles verifiees
 
@@ -46,7 +46,7 @@ Proprietes :
 Etat actuel :
 - `createSingleAccountNet` : deadlock absent, vivant, borne, reversible.
 - `createTransferNet` : deadlock absent, vivant, borne, reversible.
-- `createCompleteNet(List("ACC-001", "ACC-002", "ACC-003"))` : deadlock absent, vivant, borne, 20 etats atteignables.
+- `createCompleteNet(List("ACC-001", "ACC-002", "ACC-003"))` : deadlock absent, vivant, borne, 216 etats atteignables.
 
 ## 4. Invariants metier
 
