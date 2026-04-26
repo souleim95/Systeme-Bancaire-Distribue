@@ -39,12 +39,11 @@ object BankingPetriNet {
     val arcs = List(
       // Dépôt
       Arc("accountAvailable_p", "deposit_t", 1),
-      Arc("deposit_t", "accountAvailable_p", 1),
+      Arc("deposit_t", "accountLocked_p", 1),
       
       // Retrait
       Arc("accountAvailable_p", "withdraw_t", 1),
-      Arc("withdrawValid_p", "withdraw_t", 1),
-      Arc("withdraw_t", "accountAvailable_p", 1),
+      Arc("withdraw_t", "accountLocked_p", 1),
       
       // Libérer le compte
       Arc("accountLocked_p", "releaseAccount_t", 1),

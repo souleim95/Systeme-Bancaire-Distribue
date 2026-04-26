@@ -126,7 +126,7 @@ object LTLIntegrationExample extends App {
   val totalCount = allResults.size
   val percentage = (validCount * 100) / totalCount
   
-  println(f"""
+  println(s"""
 Résumé de la vérification:
   • Propriétés vérifiées: $validCount/$totalCount (${percentage}%)
   • État du système: ${if (validCount == totalCount) "✓ SÛRE" else "⚠ À EXAMINER"}
