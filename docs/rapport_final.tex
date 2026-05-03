@@ -1,0 +1,488 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\geometry{margin=2.4cm}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!55!black,
+  urlcolor=blue!55!black,
+  pdftitle={Rapport final - Système bancaire distribué},
+  pdfauthor={Groupe 5}
+}
+\urlstyle{tt}
+
+\definecolor{mainblue}{RGB}{31,78,121}
+\definecolor{softgray}{RGB}{245,247,250}
+\definecolor{darkgray}{RGB}{60,60,60}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{softgray},
+  frame=single,
+  rulecolor=\color{softgray},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true
+}
+
+\newcommand{\code}[1]{\path{#1}}
+\newcommand{\pass}{\textbf{\textcolor{green!45!black}{PASS}}}
+
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{1.5cm}
+  {\Large CY Tech - ING2 - PRF\par}
+  \vspace{0.7cm}
+  {\Huge\bfseries Modélisation et vérification formelle d'un système bancaire distribué\par}
+  \vspace{0.6cm}
+  {\LARGE Akka, Scala, réseaux de Pétri et LTL\par}
+  \vspace{1.4cm}
+  {\Large Projet 2026 - Groupe 5\par}
+  \vspace{0.5cm}
+  {\large Souleim \quad Mehdi \quad Abbes \quad Nahel\par}
+  \vfill
+  {\large 2 mai 2026\par}
+  \vspace{0.5cm}
+  {\large Repository : \url{https://github.com/souleim95/Systeme-Bancaire-Distribue.git}\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section*{Résumé}
+\addcontentsline{toc}{section}{Résumé}
+
+Ce projet porte sur la modélisation et la vérification d'une application distribuée critique : un système bancaire manipulant des comptes, des dépôts, des retraits et des virements. L'implémentation opérationnelle repose sur Akka Typed et Scala. Les comportements critiques sont ensuite abstraits dans un réseau de Pétri maison, sans outil externe, afin d'explorer l'espace d'états et de vérifier des propriétés de sûreté et de vivacité.
+
+Le résultat obtenu couvre les exigences du cahier des charges : état de l'art, architecture acteur fonctionnelle, réseau de Pétri, analyse structurelle, invariants métier, model checking LTL, tests unitaires, interface de démonstration et comparaison entre simulation Akka et modèle formel.
+
+\section{Introduction}
+
+\subsection{Contexte}
+
+Les systèmes bancaires distribués doivent traiter des opérations concurrentes tout en préservant des propriétés fortes : absence de perte d'argent, refus des opérations invalides, terminaison explicite des transactions et absence de blocage global. Dans ce contexte, une simple simulation ne suffit pas, car elle n'explore qu'un nombre limité de scénarios.
+
+Le projet combine donc deux niveaux complémentaires :
+\begin{itemize}[leftmargin=*]
+  \item une application Akka/Scala qui simule le comportement réel du système ;
+  \item un modèle formel par réseau de Pétri, vérifié structurellement et avec des formules LTL.
+\end{itemize}
+
+\subsection{Objectifs}
+
+Les objectifs retenus sont les suivants :
+\begin{enumerate}[leftmargin=*]
+  \item étudier la vérification formelle et les réseaux de Pétri pour les systèmes critiques ;
+  \item concevoir une application distribuée bancaire sous forme d'acteurs Akka ;
+  \item identifier les flux de messages critiques, en particulier le virement ;
+  \item traduire les comportements critiques dans un réseau de Pétri maison ;
+  \item vérifier l'absence de deadlock, la bornitude, la vivacité et les invariants métier ;
+  \item comparer la simulation Akka et l'analyse formelle.
+\end{enumerate}
+
+\section{État de l'art}
+
+\subsection{Vérification formelle}
+
+La vérification formelle consiste à représenter mathématiquement le comportement d'un système puis à vérifier automatiquement que certaines propriétés sont satisfaites. Elle est particulièrement adaptée aux systèmes critiques, car elle permet d'analyser des chemins d'exécution difficiles à reproduire par tests manuels.
+
+On distingue principalement :
+\begin{description}[leftmargin=2.8cm,style=nextline]
+  \item[Sûreté] une situation interdite ne doit jamais arriver. Exemple : un compte ne doit jamais avoir un solde négatif.
+  \item[Vivacité] une situation attendue finit par arriver. Exemple : une transaction initiée finit par être confirmée ou annulée.
+  \item[Absence de deadlock] le système ne doit pas atteindre un état où aucune progression n'est possible.
+\end{description}
+
+\subsection{Réseaux de Pétri}
+
+Un réseau de Pétri représente un système par des places, des transitions, des arcs et un marquage. Les places décrivent les états locaux, les transitions décrivent les événements, et les jetons décrivent l'état courant du système.
+
+Ce modèle est adapté aux systèmes distribués car il exprime naturellement :
+\begin{itemize}[leftmargin=*]
+  \item la concurrence entre opérations indépendantes ;
+  \item la causalité entre messages ;
+  \item les conflits d'accès à une ressource partagée ;
+  \item les états atteignables après chaque séquence d'exécution.
+\end{itemize}
+
+\subsection{LTL}
+
+La logique temporelle linéaire (LTL) permet d'exprimer des propriétés sur l'évolution d'un système dans le temps. Les opérateurs principaux utilisés dans le projet sont :
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Opérateur & Lecture & Exemple bancaire \\
+\midrule
+\code{G phi} & toujours $\phi$ & jamais de deadlock \\
+\code{F phi} & finalement $\phi$ & un verrou finit par être libéré \\
+\code{X phi} & au prochain état $\phi$ & l'état suivant est cohérent \\
+\code{phi U psi} & $\phi$ jusqu'à $\psi$ & attente jusqu'à confirmation \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Architecture fonctionnelle Akka/Scala}
+
+\subsection{Vue générale}
+
+L'application est organisée autour de deux types d'acteurs principaux :
+
+\begin{center}
+\begin{tabularx}{\textwidth}{>{\bfseries}l X}
+\toprule
+Acteur & Responsabilités \\
+\midrule
+\code{Banque} & crée les comptes, garde la table des acteurs, route les opérations, agrège les soldes, arrête les comptes fermés. \\
+\code{Compte} & porte l'état d'un compte : solde, historique, statut actif, virements en attente, validation des opérations. \\
+\code{ProtocoleBancaire} & définit les commandes et les réponses échangées entre la banque, les comptes et le client. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Les fichiers principaux sont :
+\begin{itemize}[leftmargin=*]
+  \item \code{src/main/scala/banque/Banque.scala}
+  \item \code{src/main/scala/banque/CompteBancaire.scala}
+  \item \code{src/main/scala/banque/ProtocoleBancaire.scala}
+  \item \code{src/main/scala/banque/FrontServer.scala}
+\end{itemize}
+
+\subsection{Flux de messages critiques}
+
+Les opérations simples suivent un routage direct :
+
+\begin{lstlisting}
+Client -> Banque -> Compte -> Banque -> Client
+\end{lstlisting}
+
+Le virement est le flux le plus critique, car il implique deux comptes :
+
+\begin{lstlisting}
+Client
+  -> Banque
+  -> Compte source
+  -> Compte destination
+  -> Compte source
+  -> Banque
+  -> Client
+\end{lstlisting}
+
+La source réserve immédiatement le montant avant de contacter le destinataire. Si le destinataire confirme, le virement est validé. Si le destinataire refuse ou répond de façon inattendue, la source rembourse le montant réservé. Ce mécanisme empêche un double débit concurrent et préserve la cohérence des fonds.
+
+\subsection{Règles métier}
+
+Les principales règles métier sont les suivantes :
+\begin{itemize}[leftmargin=*]
+  \item un compte ne peut pas être créé avec un solde initial négatif ;
+  \item un dépôt doit avoir un montant strictement positif ;
+  \item un retrait doit avoir un montant strictement positif et un solde suffisant ;
+  \item un virement doit avoir un montant strictement positif, une source existante, une destination existante et un solde suffisant ;
+  \item un compte fermé ne peut plus traiter d'opérations ;
+  \item un compte avec un virement en attente ne peut pas être fermé.
+\end{itemize}
+
+\section{Modèle formel par réseau de Pétri}
+
+\subsection{Implémentation maison}
+
+Le modèle formel est implémenté dans \code{src/main/scala/petri}. Il n'utilise pas d'outil logiciel externe de réseau de Pétri, conformément au cahier des charges.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{>{\bfseries}l X}
+\toprule
+Fichier & Rôle \\
+\midrule
+\code{PetriNet.scala} & structures \code{Place}, \code{Transition}, \code{Arc}, \code{Marking}, franchissement et graphe de réachabilité. \\
+\code{BankingPetriNet.scala} & réseaux bancaires : compte simple, virement, réseau complet pour plusieurs comptes. \\
+\code{PropertyChecker.scala} & vérification de deadlock, vivacité, bornitude, réversibilité et invariants. \\
+\code{LTL.scala} & parseur, évaluateur et model checker LTL. \\
+\code{Simulator.scala} & simulation interactive, aléatoire, par trace et par séquence. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Places et transitions}
+
+Pour un compte, le réseau abstrait les états suivants :
+\begin{itemize}[leftmargin=*]
+  \item compte disponible ;
+  \item compte verrouillé pendant une opération ;
+  \item validité abstraite du solde ;
+  \item opération de dépôt, retrait ou libération.
+\end{itemize}
+
+Pour un virement, le réseau introduit :
+\begin{itemize}[leftmargin=*]
+  \item une source disponible ou verrouillée ;
+  \item une destination disponible ou verrouillée ;
+  \item une place de virement en attente ;
+  \item une transition de confirmation ou de libération.
+\end{itemize}
+
+\subsection{Espace d'états}
+
+Le graphe de réachabilité est construit par parcours en largeur dans \code{PetriNet.getReachabilityGraph}. Chaque marquage atteint est exploré, puis les transitions activées produisent les marquages suivants.
+
+Les résultats observés pour les réseaux fournis sont :
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Réseau & Places & Transitions & Arcs & États atteignables \\
+\midrule
+Compte simple & 4 & 3 & 6 & 2 \\
+Virement deux comptes & 7 & 4 & 22 & 3 \\
+Réseau complet trois comptes & 15 & 21 & 96 & 216 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Vérification des propriétés}
+
+\subsection{Propriétés structurelles}
+
+Le vérificateur \code{PropertyChecker} vérifie les propriétés suivantes :
+
+\begin{description}[leftmargin=3cm,style=nextline]
+  \item[Absence de deadlock] aucun marquage atteignable ne doit être terminal.
+  \item[Vivacité] depuis les états atteignables, les transitions critiques peuvent redevenir exécutables.
+  \item[Bornitude] le nombre de jetons par place reste borné.
+  \item[Réversibilité] le modèle peut revenir au marquage initial lorsque la structure le garantit.
+  \item[Invariant] les marquages ne produisent jamais de valeur négative.
+\end{description}
+
+Sur les réseaux du projet, les analyses attendues sont en succès :
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Propriété & Résultat & Interprétation \\
+\midrule
+Absence de deadlock & \pass & le système peut toujours progresser \\
+Vivacité & \pass & les opérations critiques ne restent pas définitivement bloquées \\
+Bornitude & \pass & pas d'explosion de jetons dans les places analysées \\
+Marquages non négatifs & \pass & cohérent avec l'invariant métier principal \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Invariant métier principal}
+
+L'invariant principal est :
+
+\begin{quote}
+Un compte bancaire ne doit jamais avoir un solde négatif.
+\end{quote}
+
+Dans l'application Akka, cet invariant est garanti par les gardes de validation des acteurs \code{Banque} et \code{Compte}. Dans le réseau de Pétri, il est représenté par une abstraction en entiers naturels : une transition ne peut être franchie que si les places d'entrée possèdent assez de jetons, et l'opération \code{decrement} ne produit pas de marquage négatif.
+
+\subsection{Vérification LTL}
+
+Le projet implémente un parseur et évaluateur LTL dans \code{LTL.scala}. Les opérateurs supportés incluent \code{!}, \code{\&}, \code{|}, \code{->}, \code{X}, \code{F}, \code{G}, \code{U} et \code{R}.
+
+Quelques formules utiles :
+
+\begin{center}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+Formule & Signification \\
+\midrule
+\code{G enabled} & globalement, au moins une transition est disponible. \\
+\code{G !deadlock} & aucun état atteignable n'est un deadlock. \\
+\code{G (has_sourceLocked_p -> F has_sourceAvailable_p)} & une source verrouillée finit par être libérée. \\
+\code{G (has_transferInitiated_p -> F (has_transferCompleted_p | has_sourceAvailable_p))} & un virement initié finit par être confirmé ou annulé proprement. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Les deadlocks sont représentés par une boucle stutter sur l'état bloqué, ce qui permet de vérifier les propriétés temporelles sur des chemins infinis.
+
+\section{Simulation et validation}
+
+\subsection{Scénario Akka de référence}
+
+Le scénario de démonstration crée trois comptes :
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Compte & Solde initial \\
+\midrule
+\code{ACC-001} & 1000 EUR \\
+\code{ACC-002} & 500 EUR \\
+\code{ACC-003} & 750 EUR \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Puis il exécute :
+\begin{enumerate}[leftmargin=*]
+  \item dépôt de 200 EUR sur \code{ACC-001} ;
+  \item retrait de 100 EUR sur \code{ACC-002} ;
+  \item virement de 300 EUR de \code{ACC-001} vers \code{ACC-002}.
+\end{enumerate}
+
+Les soldes attendus sont :
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Compte & Solde final attendu \\
+\midrule
+\code{ACC-001} & 900 EUR \\
+\code{ACC-002} & 700 EUR \\
+\code{ACC-003} & 750 EUR \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Comparaison Akka/Pétri}
+
+La simulation Akka montre le comportement opérationnel réel : messages, acteurs, réponses, historiques et soldes. Le réseau de Pétri montre l'abstraction formelle : disponibilité, verrouillage, transitions critiques, états atteignables et absence de blocage.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{>{\bfseries}l X X}
+\toprule
+Opération & Côté Akka & Côté Pétri \\
+\midrule
+Dépôt & augmentation du solde et historique & transition de dépôt puis libération du compte \\
+Retrait & garde \code{solde >= montant} & transition franchissable seulement si le compte est valide \\
+Virement & réservation source, crédit destination, confirmation ou remboursement & verrouillage source/destination, place en attente, libération \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Interface de démonstration}
+
+Une interface web locale permet de présenter le projet sans passer uniquement par la console. Elle est servie par \code{FrontServer.scala}.
+
+\begin{lstlisting}
+sbt "runMain banque.FrontServer 8080"
+\end{lstlisting}
+
+Puis ouvrir :
+
+\begin{lstlisting}
+http://localhost:8080
+\end{lstlisting}
+
+L'interface permet de :
+\begin{itemize}[leftmargin=*]
+  \item créer, fermer et consulter des comptes ;
+  \item effectuer dépôts, retraits et virements ;
+  \item vérifier le total de la banque ;
+  \item afficher l'analyse formelle du réseau de Pétri ;
+  \item tester des formules LTL comme \code{G enabled} ou \code{G !deadlock}.
+\end{itemize}
+
+\section{Tests et commandes de validation}
+
+Les tests unitaires couvrent les comportements bancaires, les réseaux de Pétri et LTL :
+
+\begin{itemize}[leftmargin=*]
+  \item \code{src/test/scala/banque/CompteSpec.scala}
+  \item \code{src/test/scala/banque/BanqueSpec.scala}
+  \item \code{src/test/scala/banque/PetriNetBankingTests.scala}
+  \item \code{src/test/scala/banque/LTLTests.scala}
+\end{itemize}
+
+Commandes principales :
+
+\begin{lstlisting}
+sbt clean test
+sbt "runMain banque.PetriNetIntegrationDemo"
+sbt "runMain banque.LTLIntegrationExample"
+sbt "runMain banque.FrontServer 8080"
+\end{lstlisting}
+
+\section{Traçabilité avec le cahier des charges}
+
+\begin{longtable}{p{0.34\textwidth} p{0.56\textwidth}}
+\toprule
+Attendu & Couverture dans le projet \\
+\midrule
+\endfirsthead
+\toprule
+Attendu & Couverture dans le projet \\
+\midrule
+\endhead
+Sources bibliographiques & Section état de l'art et fichier \code{docs/etat_de_l_art.md}. \\
+Modèle Akka/Scala fonctionnel & Acteurs \code{Banque} et \code{Compte}, protocole typé, tests et interface. \\
+Réseau de Pétri & Implémentation maison dans \code{src/main/scala/petri}, avec exploration de l'espace d'états. \\
+Rapport de vérification & Ce rapport, \code{docs/rapport_verification.md}, guides Petri et LTL. \\
+Simulation comparée & \code{PetriNetIntegrationDemo.scala}, scénario Akka et correspondance Petri. \\
+Lien GitHub & Présent dans le README et sur la page de garde de ce rapport. \\
+\bottomrule
+\end{longtable}
+
+\section{Limites et perspectives}
+
+Le projet réalise les objectifs demandés, mais certaines limites restent naturelles :
+\begin{itemize}[leftmargin=*]
+  \item le modèle de Pétri abstrait les soldes par une notion de validité plutôt que par toutes les valeurs monétaires possibles ;
+  \item l'espace d'états augmente rapidement avec le nombre de comptes ;
+  \item le model checker LTL n'intègre pas encore d'optimisations avancées comme les BDD ;
+  \item les contre-exemples pourraient être rendus visuels dans l'interface.
+\end{itemize}
+
+Les extensions possibles sont la visualisation graphique du réseau, l'export PNML, l'ajout de réseaux temporisés, ou une comparaison plus systématique entre traces Akka et traces Petri.
+
+\section{Conclusion}
+
+Le projet aboutit à une application bancaire distribuée complète, vérifiée par deux approches complémentaires. Akka/Scala fournit une simulation réaliste et testable, tandis que le réseau de Pétri et LTL donnent une analyse formelle des comportements critiques. Les propriétés principales attendues sont couvertes : absence de deadlock, bornitude, vivacité, invariants non négatifs et cohérence des virements.
+
+Cette combinaison permet de relier clairement les exigences métier, l'implémentation distribuée et les garanties formelles demandées dans le cahier des charges.
+
+\begin{thebibliography}{9}
+
+\bibitem{baier}
+Christel Baier et Joost-Pieter Katoen,
+\textit{Principles of Model Checking},
+MIT Press, 2008.
+
+\bibitem{reisig}
+Wolfgang Reisig,
+\textit{Understanding Petri Nets},
+Springer, 2013.
+
+\bibitem{clarke}
+E. M. Clarke, O. Grumberg et D. Peled,
+\textit{Model Checking},
+MIT Press, 1999.
+
+\bibitem{lamport}
+Leslie Lamport,
+``Proving the Correctness of Multiprocess Programs'',
+\textit{IEEE Transactions on Software Engineering}, 1977.
+
+\bibitem{pnueli}
+Amir Pnueli,
+``The Temporal Logic of Programs'',
+\textit{FOCS}, 1977.
+
+\bibitem{akka}
+Akka Documentation,
+\url{https://doc.akka.io/docs/akka/current/typed/}
+
+\bibitem{scala}
+Scala Documentation,
+\url{https://docs.scala-lang.org/}
+
+\end{thebibliography}
+
+\end{document}
