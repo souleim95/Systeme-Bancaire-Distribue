@@ -11,7 +11,10 @@
 \usepackage{xcolor}
 \usepackage{listings}
 \usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{tikz}
 \usepackage{hyperref}
+\usetikzlibrary{arrows.meta,positioning,calc}
 
 \geometry{margin=2.4cm}
 \hypersetup{
@@ -39,6 +42,16 @@
 
 \newcommand{\code}[1]{\path{#1}}
 \newcommand{\pass}{\textbf{\textcolor{green!45!black}{PASS}}}
+\newcommand{\partiel}{\textbf{\textcolor{orange!85!black}{PARTIEL}}}
+\newcommand{\todo}{\textbf{\textcolor{red!70!black}{À AMÉLIORER}}}
+
+\tikzset{
+  petriplace/.style={circle, draw=mainblue, thick, fill=white, minimum size=16mm, align=center, font=\scriptsize},
+  petransition/.style={rectangle, draw=darkgray, thick, fill=softgray, minimum width=20mm, minimum height=8mm, align=center, font=\scriptsize},
+  petriarc/.style={-{Latex[length=2mm]}, thick, draw=darkgray},
+  petrilabel/.style={font=\scriptsize\ttfamily, align=center},
+  token/.style={circle, fill=black, inner sep=0pt, minimum size=3.2mm}
+}
 
 \begin{document}
 
@@ -54,6 +67,13 @@
   {\Large Projet 2026 - Groupe 5\par}
   \vspace{0.5cm}
   {\large Souleim \quad Mehdi \quad Abbes \quad Nahel\par}
+  \vspace{1.1cm}
+  \begin{tabularx}{0.92\textwidth}{>{\bfseries}p{0.24\textwidth} X}
+  Projet & Système bancaire distribué critique : comptes, dépôts, retraits, virements et fermeture contrôlée. \\
+  Technologies & Scala 2.13.18, Akka Typed 2.8.5, sbt 1.12.5, analyseur maison de réseaux de Pétri, parseur LTL. \\
+  Périmètre analysé & \code{src/main/scala/banque}, \code{src/main/scala/petri}, tests Akka/Pétri/LTL, interface locale. \\
+  Propriétés ciblées & absence de deadlock, bornitude, vivacité, validité des transitions, cohérence des virements, solde jamais négatif. \\
+  \end{tabularx}
   \vfill
   {\large 2 mai 2026\par}
   \vspace{0.5cm}
@@ -93,6 +113,18 @@ Les objectifs retenus sont les suivants :
   \item vérifier l'absence de deadlock, la bornitude, la vivacité et les invariants métier ;
   \item comparer la simulation Akka et l'analyse formelle.
 \end{enumerate}
+
+\subsection{Périmètre du rapport}
+
+Le rapport vérifie le périmètre réellement livré dans le dépôt :
+\begin{itemize}[leftmargin=*]
+  \item l'architecture Akka Typed des acteurs \code{Banque} et \code{Compte} ;
+  \item le protocole de messages défini dans \code{ProtocoleBancaire.scala} ;
+  \item les opérations métier : création, dépôt, retrait, virement, consultation, historique et fermeture ;
+  \item les réseaux de Pétri maison : compte simple, virement à deux comptes et réseau complet à trois comptes ;
+  \item les tests unitaires Akka, les tests de propriétés Pétri et les tests LTL ;
+  \item l'interface locale de démonstration qui expose les opérations et les résultats formels.
+\end{itemize}
 
 \section{État de l'art}
 
@@ -136,6 +168,74 @@ Opérateur & Lecture & Exemple bancaire \\
 \end{tabular}
 \end{center}
 
+\section{Concepts formels mobilisés}
+
+Cette section explicite les notions demandées dans le cahier des charges et la manière dont elles sont utilisées dans le projet. L'objectif n'est pas seulement de citer les concepts, mais de montrer leur rôle dans la vérification du système bancaire distribué.
+
+\subsection{Système critique et abstraction}
+
+Un système est dit critique lorsqu'une erreur peut produire des conséquences importantes : perte d'argent, incohérence de données, blocage d'un service ou réponse incorrecte à un client. Dans notre cas, le virement bancaire est l'opération la plus sensible, car il modifie deux comptes et doit rester cohérent même lorsque plusieurs messages sont traités de façon concurrente.
+
+L'abstraction consiste à ne conserver dans le modèle formel que les informations nécessaires à la vérification. Par exemple, le réseau de Pétri ne représente pas tous les montants possibles d'un compte. Il représente plutôt les états utiles à la sûreté : compte disponible, compte verrouillé, solde abstraitement valide, virement initié ou virement terminé. Cette simplification permet d'explorer l'espace d'états sans perdre les propriétés essentielles.
+
+\subsection{Éléments d'un réseau de Pétri}
+
+Un réseau de Pétri est défini par un ensemble de places, de transitions, d'arcs et par un marquage initial. Le tableau suivant relie chaque notion au cas bancaire :
+
+\begin{center}
+\begin{tabularx}{\textwidth}{>{\bfseries}l X X}
+\toprule
+Concept & Définition & Interprétation bancaire \\
+\midrule
+Place & état local ou condition du système & compte disponible, compte verrouillé, virement en attente \\
+Jeton & présence d'une ressource ou d'une condition vraie & un compte est libre, un solde est suffisant, une transaction est en cours \\
+Transition & événement qui fait évoluer le système & dépôt, retrait, initiation d'un virement, confirmation ou annulation \\
+Arc & relation de consommation ou de production entre place et transition & une opération consomme la disponibilité d'un compte puis produit un verrou \\
+Marquage & répartition des jetons dans les places & état courant global du système bancaire abstrait \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Une transition est franchissable lorsque toutes ses places d'entrée contiennent assez de jetons. Son franchissement consomme les jetons d'entrée et produit les jetons de sortie. Cette règle est importante pour l'invariant bancaire : le modèle ne peut pas consommer une ressource qui n'existe pas, ce qui correspond à l'idée qu'un retrait ou un virement ne doit pas être accepté sans condition de validité.
+
+\subsection{Espace d'états et graphe de réachabilité}
+
+L'espace d'états est l'ensemble de tous les marquages atteignables depuis le marquage initial. Dans le projet, il est construit automatiquement par parcours en largeur : à partir d'un marquage, on calcule toutes les transitions activées, puis tous les marquages obtenus après franchissement.
+
+Le graphe de réachabilité est donc composé :
+\begin{itemize}[leftmargin=*]
+  \item de nœuds, qui sont les marquages atteignables ;
+  \item d'arêtes, qui sont les transitions franchies entre deux marquages ;
+  \item de chemins, qui correspondent aux séquences possibles d'exécution du système.
+\end{itemize}
+
+Cette exploration est plus forte qu'une simulation simple, car elle ne suit pas une seule exécution. Elle examine toutes les évolutions possibles du modèle, y compris les entrelacements concurrents entre opérations indépendantes.
+
+\subsection{Propriétés demandées}
+
+Les propriétés vérifiées dans ce projet correspondent directement aux attentes de l'énoncé :
+
+\begin{center}
+\begin{tabularx}{\textwidth}{>{\bfseries}l X X}
+\toprule
+Propriété & Question posée au modèle & Exemple dans le système bancaire \\
+\midrule
+Validité des transitions & une transition n'est-elle exécutée que lorsque ses préconditions sont vraies ? & un virement ne démarre que si la source, la destination et le solde source sont disponibles \\
+Absence de deadlock & existe-t-il un état atteignable où aucune transition ne peut s'exécuter ? & les comptes ne restent pas verrouillés définitivement \\
+Cohérence des séquences & les chemins possibles respectent-ils l'ordre logique des opérations ? & un virement est initié avant d'être confirmé ou annulé \\
+Bornitude & le nombre de jetons reste-t-il limité dans chaque place ? & le modèle ne crée pas une quantité non maîtrisée de ressources \\
+Vivacité & une opération critique peut-elle finir par progresser ? & un verrou finit par être libéré \\
+Invariant métier & une contrainte reste-t-elle vraie dans tous les états ? & un compte ne devient jamais négatif \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Rôle de LTL}
+
+La logique LTL complète les propriétés structurelles du réseau de Pétri. Les propriétés structurelles observent le graphe d'états, tandis que LTL permet d'écrire des garanties sur les chemins d'exécution. Par exemple, \code{G !deadlock} signifie que, sur toute exécution, aucun état bloqué n'est rencontré. La formule \code{G (has_sourceLocked_p -> F has_sourceAvailable_p)} exprime une propriété de vivacité : dès que la source est verrouillée, elle finit par redevenir disponible.
+
+Ainsi, le projet relie trois niveaux : les règles métier du système bancaire, leur traduction en places et transitions, puis leur expression en propriétés vérifiables automatiquement.
+
 \section{Architecture fonctionnelle Akka/Scala}
 
 \subsection{Vue générale}
@@ -161,6 +261,43 @@ Les fichiers principaux sont :
   \item \code{src/main/scala/banque/ProtocoleBancaire.scala}
   \item \code{src/main/scala/banque/FrontServer.scala}
 \end{itemize}
+
+\subsection{Hiérarchie des acteurs}
+
+Le système repose sur une hiérarchie volontairement simple : un acteur \code{Banque} centralise la création des comptes et le routage, puis délègue l'exécution des opérations aux acteurs \code{Compte}. Cette organisation permet de séparer l'annuaire des comptes, maintenu par la banque, et l'état métier de chaque compte, maintenu localement par l'acteur concerné.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.28\textwidth} X X}
+\toprule
+Élément & Rôle structurel & Garantie apportée \\
+\midrule
+\code{ActorSystem} & racine d'exécution Akka Typed & isole le système bancaire dans une boucle de messages contrôlée \\
+\code{Banque} & acteur d'orchestration et annuaire des comptes & évite l'accès direct non contrôlé aux comptes depuis le client \\
+\code{Compte(accountId)} & acteur d'état pour un compte bancaire & sérialise les opérations concurrentes sur un même solde \\
+Acteurs adaptateurs anonymes & relais temporaire de réponse vers la banque & rattache chaque réponse à la requête d'origine \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+La propriété essentielle est la sérialisation par acteur : deux messages envoyés au même compte ne modifient jamais simultanément le solde. Même si plusieurs clients envoient des opérations en parallèle, Akka les place dans la boîte aux lettres de l'acteur, puis \code{Compte} les traite un par un.
+
+\subsection{Typage statique des protocoles}
+
+Comme dans le rapport de référence, le typage des messages est une propriété structurelle importante. Le projet utilise Akka Typed : chaque acteur expose un \code{ActorRef[T]} qui n'accepte que les messages du type \code{T}. Les protocoles sont définis par des traits scellés, ce qui limite les commandes possibles et rend les échanges explicites.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.25\textwidth} X X}
+\toprule
+Trait / type & Messages principaux & Destinataire \\
+\midrule
+\code{Banque.CommandeBanque} & \code{CreerCompteReq}, \code{OperationCompteBanque}, \code{ListerComptesReq}, \code{ConsulterSoldeGlobalReq}, \code{SupprimerCompteReq} & acteur \code{Banque} uniquement \\
+\code{CommandeBancaire} & \code{Deposer}, \code{Retirer}, \code{Virement}, \code{ConsulterSolde}, \code{FermerCompte}, \code{ReceptionVirement}, \code{ConfirmationVirement} & acteurs \code{Compte} \\
+\code{ReponseBancaire} & \code{OperationReussie}, \code{OperationEchouee}, \code{SoldeActuel}, \code{HistoriqueCompte}, \code{CompteCréé}, \code{CompteFermé} & client, banque ou adaptateur de réponse \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Cette séparation évite par construction plusieurs erreurs de protocole : un client ne peut pas envoyer directement une commande de gestion interne à un compte sans passer par le type attendu, et la banque ne confond pas ses commandes d'orchestration avec les commandes métier d'un compte.
 
 \subsection{Flux de messages critiques}
 
@@ -195,6 +332,26 @@ Les principales règles métier sont les suivantes :
   \item un compte fermé ne peut plus traiter d'opérations ;
   \item un compte avec un virement en attente ne peut pas être fermé.
 \end{itemize}
+
+\subsection{Machine à états d'un compte}
+
+Dans le code, chaque compte possède un état interne \code{CompteState} composé de cinq informations : l'identifiant, le solde, l'historique, le booléen \code{estActif} et la table \code{pendingTransfers}. Cette structure correspond à une machine à états contrôlée exclusivement par l'acteur \code{Compte}.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.18\textwidth} X X X}
+\toprule
+État logique & Données portées & Transitions entrantes & Transitions sortantes \\
+\midrule
+Actif libre & \code{estActif = true}, aucun virement en attente & création, fin de dépôt, fin de retrait, confirmation ou annulation de virement & dépôt, retrait, consultation, initiation de virement, fermeture \\
+Virement réservé & solde source déjà débité, \code{pendingTransfers(txId)} présent & \code{Virement} accepté par la source & \code{ConfirmationVirement} confirmée ou échouée \\
+Destination créditée & historique de réception mis à jour & \code{ReceptionVirement} acceptée & réponse \code{OperationReussie} vers la source \\
+Fermé & \code{estActif = false} & \code{FermerCompte} sans opération en cours & toutes les opérations métier sont refusées \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+L'acyclicité partielle de cette machine est importante : un compte fermé ne revient pas à l'état actif, et un virement réservé doit sortir de \code{pendingTransfers} par confirmation ou remboursement. Le refus de fermeture lorsque \code{pendingTransfers.nonEmpty} empêche de supprimer un compte pendant une opération critique.
 
 \section{Modèle formel par réseau de Pétri}
 
@@ -234,9 +391,125 @@ Pour un virement, le réseau introduit :
   \item une transition de confirmation ou de libération.
 \end{itemize}
 
+\subsection{Schéma du réseau de virement}
+
+Le schéma suivant représente le cœur du réseau de Pétri utilisé pour modéliser un virement entre deux comptes. Les cercles sont des places, les rectangles sont des transitions et les flèches sont des arcs de consommation ou de production de jetons.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[node distance=0.8cm and 1.2cm]
+  \node[petriplace] (sourceAvailable) at (0,2.4) {};
+  \node[petrilabel] at (0,3.45) {sourceAvailable\_p};
+  \node[token] at (sourceAvailable.center) {};
+
+  \node[petriplace] (sourceValid) at (0,0.8) {};
+  \node[petrilabel] at (0,1.85) {sourceValid\_p};
+  \node[token] at (sourceValid.center) {};
+
+  \node[petriplace] (destAvailable) at (0,-0.8) {};
+  \node[petrilabel] at (0,-1.85) {destAvailable\_p};
+  \node[token] at (destAvailable.center) {};
+
+  \node[petransition] (initiate) at (3,0.8) {initiate\\Transfer};
+
+  \node[petriplace] (sourceLocked) at (6,2.4) {};
+  \node[petrilabel] at (6,3.45) {sourceLocked\_p};
+
+  \node[petriplace] (transferInitiated) at (6,0.8) {};
+  \node[petrilabel] at (6,1.85) {transferInitiated\_p};
+
+  \node[petriplace] (destLocked) at (6,-0.8) {};
+  \node[petrilabel] at (6,-1.85) {destLocked\_p};
+
+  \node[petransition] (complete) at (9,1.6) {complete\\Transfer};
+  \node[petransition] (abort) at (9,-0.2) {abort\\Transfer};
+
+  \node[petriplace] (transferCompleted) at (12,1.6) {};
+  \node[petrilabel] at (12,2.65) {transferCompleted\_p};
+
+  \node[petransition] (release) at (14.8,1.6) {release\\Both};
+  \node[petriplace] (availableAgain) at (17.5,0.7) {};
+  \node[petrilabel] at (17.5,-0.35) {comptesLiberes\_p};
+
+  \draw[petriarc] (sourceAvailable) -- (initiate);
+  \draw[petriarc] (sourceValid) -- (initiate);
+  \draw[petriarc] (destAvailable) -- (initiate);
+
+  \draw[petriarc] (initiate) -- (sourceLocked);
+  \draw[petriarc] (initiate) -- (transferInitiated);
+  \draw[petriarc] (initiate) -- (destLocked);
+
+  \draw[petriarc] (sourceLocked) -- (complete);
+  \draw[petriarc] (transferInitiated) -- (complete);
+  \draw[petriarc] (destLocked) -- (complete);
+  \draw[petriarc] (complete) -- (transferCompleted);
+  \draw[petriarc] (transferCompleted) -- (release);
+  \draw[petriarc] (release) -- (availableAgain);
+
+  \draw[petriarc] (sourceLocked) -- (abort);
+  \draw[petriarc] (transferInitiated) -- (abort);
+  \draw[petriarc] (destLocked) -- (abort);
+  \draw[petriarc] (abort) -- (availableAgain);
+\end{tikzpicture}%
+}
+\caption{Réseau de Pétri simplifié du virement bancaire}
+\label{fig:petri-virement}
+\end{figure}
+
+Le marquage initial contient trois jetons :
+\begin{itemize}[leftmargin=*]
+  \item un jeton dans \code{sourceAvailable_p}, qui indique que le compte source est libre ;
+  \item un jeton dans \code{sourceValid_p}, qui indique que le solde source est suffisant ;
+  \item un jeton dans \code{destAvailable_p}, qui indique que le compte destination est libre.
+\end{itemize}
+
+La transition \code{initiateTransfer_t} ne peut donc être franchie que si ces trois conditions sont vraies en même temps. Après franchissement, les deux comptes sont verrouillés et un jeton est placé dans \code{transferInitiated_p}.
+
+Deux suites sont alors possibles. La transition \code{completeTransfer_t} représente le cas nominal : le virement est confirmé puis \code{releaseBothAccounts_t} rend les comptes disponibles. La transition \code{abortTransfer_t} représente l'échec contrôlé : le virement est annulé et les comptes sont également libérés. Dans les deux cas, les verrous ne restent pas bloqués, ce qui soutient les propriétés d'absence de deadlock et de vivacité.
+
+\subsection{Places et marquage initial du virement}
+
+La table suivante reprend le niveau de détail du rapport de référence : chaque place du réseau de virement reçoit une signification métier et un marquage initial. Le modèle est volontairement abstrait : il ne stocke pas le montant exact, mais uniquement les conditions nécessaires à la validité du virement.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.27\textwidth} X p{0.18\textwidth}}
+\toprule
+Place & Rôle sémantique & Marquage initial \\
+\midrule
+\code{sourceAvailable_p} & le compte source peut accepter une opération & 1 jeton \\
+\code{sourceValid_p} & le solde source est abstraitement suffisant pour débiter & 1 jeton \\
+\code{sourceLocked_p} & la source est réservée pendant le virement & 0 jeton \\
+\code{destAvailable_p} & le compte destination peut recevoir le virement & 1 jeton \\
+\code{destLocked_p} & la destination est réservée pendant le virement & 0 jeton \\
+\code{transferInitiated_p} & le virement a été lancé mais pas encore tranché & 0 jeton \\
+\code{transferCompleted_p} & le virement a été confirmé et attend la libération & 0 jeton \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Transitions et correspondance avec le code}
+
+\begin{center}
+\footnotesize
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.22\textwidth} X X}
+\toprule
+Transition & Préconditions et effets & Correspondance Scala/Akka \\
+\midrule
+\code{initiateTransfer_t} & consomme la disponibilité source, la validité source et la disponibilité destination ; produit les verrous source/destination et l'état \code{transferInitiated_p} & réception de \code{Virement}, validation du montant, débit réservé et envoi de \code{ReceptionVirement} \\
+\code{completeTransfer_t} & consomme le virement initié et les deux verrous ; produit \code{transferCompleted_p} & réception d'une \code{OperationReussie} depuis la destination dans \code{ConfirmationVirement} \\
+\code{abortTransfer_t} & consomme le virement initié et les deux verrous ; restaure la disponibilité source, la destination et la validité source & réponse \code{OperationEchouee} ou réponse inattendue de la destination, puis remboursement de la source \\
+\code{releaseBothAccounts_t} & consomme \code{transferCompleted_p} ; rend les comptes disponibles et restaure la validité source & suppression de \code{pendingTransfers(txId)} après confirmation et retour vers un état libre \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Cette correspondance justifie le modèle : chaque transition importante du réseau représente une étape atomique visible dans le protocole Akka. Les détails non essentiels à la vérification, comme le texte exact des messages ou le contenu complet de l'historique, sont abstraits.
+
 \subsection{Espace d'états}
 
-Le graphe de réachabilité est construit par parcours en largeur dans \code{PetriNet.getReachabilityGraph}. Chaque marquage atteint est exploré, puis les transitions activées produisent les marquages suivants.
+Le graphe de réachabilité est construit par parcours en largeur. L'implémentation se trouve dans la méthode \code{getReachabilityGraph} de la classe \code{PetriNet}. Chaque marquage atteint est exploré, puis les transitions activées produisent les marquages suivants.
 
 Les résultats observés pour les réseaux fournis sont :
 
@@ -269,7 +542,7 @@ Le vérificateur \code{PropertyChecker} vérifie les propriétés suivantes :
 Sur les réseaux du projet, les analyses attendues sont en succès :
 
 \begin{center}
-\begin{tabular}{lll}
+\begin{tabularx}{\textwidth}{>{\bfseries}l l X}
 \toprule
 Propriété & Résultat & Interprétation \\
 \midrule
@@ -278,7 +551,7 @@ Vivacité & \pass & les opérations critiques ne restent pas définitivement blo
 Bornitude & \pass & pas d'explosion de jetons dans les places analysées \\
 Marquages non négatifs & \pass & cohérent avec l'invariant métier principal \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{center}
 
 \subsection{Invariant métier principal}
@@ -291,6 +564,48 @@ Un compte bancaire ne doit jamais avoir un solde négatif.
 
 Dans l'application Akka, cet invariant est garanti par les gardes de validation des acteurs \code{Banque} et \code{Compte}. Dans le réseau de Pétri, il est représenté par une abstraction en entiers naturels : une transition ne peut être franchie que si les places d'entrée possèdent assez de jetons, et l'opération \code{decrement} ne produit pas de marquage négatif.
 
+\subsection{Invariants comportementaux}
+
+Les invariants suivants croisent trois sources : la lecture du code Akka, les tests unitaires et le réseau de Pétri. La colonne \emph{niveau} indique la force de la garantie dans le périmètre du projet.
+
+\footnotesize
+\begin{longtable}{@{}p{0.06\textwidth} p{0.17\textwidth} p{0.25\textwidth} p{0.27\textwidth} p{0.10\textwidth}@{}}
+\toprule
+\# & Invariant & Mécanisme dans le code & Vérification Pétri/LTL & Niveau \\
+\midrule
+\endfirsthead
+\toprule
+\# & Invariant & Mécanisme dans le code & Vérification Pétri/LTL & Niveau \\
+\midrule
+\endhead
+I-1 & Solde jamais négatif & gardes \code{soldeInitial >= 0}, \code{montant > 0}, \code{solde >= montant} avant retrait ou virement & consommation de jetons seulement si les places d'entrée sont marquées ; \code{Marking.decrement} ne crée pas de valeur négative & Fort \\
+I-2 & Unicité d'un compte & \code{BanqueState.comptes.contains(accountId)} bloque une création en doublon & les identifiants concrets sont abstraits ; le réseau complet crée une place par compte connu & Fort côté code \\
+I-3 & Opérations interdites sur compte fermé & \code{estActif} est vérifié avant dépôt, retrait, virement et consultation & l'absence de jeton de disponibilité bloque les transitions d'opération & Fort \\
+I-4 & Pas de double débit concurrent & l'acteur \code{Compte} traite les messages séquentiellement et réserve immédiatement le montant source & \code{sourceAvailable_p} est consommée par \code{initiateTransfer_t}, puis la source reste verrouillée & Fort \\
+I-5 & Virement compensé en cas d'échec & \code{ConfirmationVirement} rembourse la source si la destination répond par échec ou réponse inattendue & \code{abortTransfer_t} restaure \code{sourceAvailable_p}, \code{destAvailable_p} et \code{sourceValid_p} & Fort \\
+I-6 & Fermeture impossible pendant un virement & \code{FermerCompte} refuse si \code{pendingTransfers.nonEmpty} & le modèle représente l'opération en cours par des verrous et une place \code{transferInitiated_p} & Fort \\
+I-7 & Libération des verrous & confirmation ou annulation retire le virement des opérations en attente & \code{G (has_sourceLocked_p -> F has_sourceAvailable_p)} vérifie que la source verrouillée finit par redevenir disponible & Fort formel \\
+I-8 & Cohérence du total bancaire & la banque met à jour son cache de soldes après \code{OperationReussie} et après \code{ForwardTransferResponse} & le réseau abstrait la conservation des ressources, pas les montants exacts & Moyen \\
+I-9 & Graphe d'états fini et borné & nombre fini de comptes et de commandes modélisées & \code{checkBoundedness} et exploration BFS : 216 états pour trois comptes & Fort formel \\
+I-10 & Absence de deadlock & les opérations normales ont toujours une réponse de succès ou d'échec & \code{checkNoDeadlock} et formules \code{G enabled}/\code{G !deadlock} & Fort formel \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\subsection{Détail des invariants critiques}
+
+\paragraph{I-1 et I-4 -- sûreté du débit.}
+Le débit est le point le plus risqué : une erreur pourrait faire passer un compte sous zéro ou appliquer deux fois le même retrait. Dans le code, le retrait et le virement vérifient d'abord que le montant est positif et que \code{state.solde >= montant}. Ensuite, le virement réserve immédiatement le montant côté source, avant de contacter la destination. Comme un acteur Akka traite ses messages séquentiellement, une seconde opération concurrente verra déjà le solde réservé et ne pourra pas réutiliser les mêmes fonds.
+
+\paragraph{I-5 -- atomicité par compensation.}
+Le système ne réalise pas une transaction distribuée ACID complète, mais il implémente une compensation explicite. Si le destinataire refuse le virement parce que le compte est fermé, ou si la réponse reçue n'est pas une confirmation attendue, la source ajoute de nouveau le montant réservé à son solde et supprime l'entrée \code{pendingTransfers}. Cette logique correspond à la branche \code{abortTransfer_t} du réseau de Pétri.
+
+\paragraph{I-7 -- vivacité des virements.}
+Dans le modèle formel, tout verrou finit par être libéré, soit par confirmation, soit par annulation. Dans le code actuel, cette propriété est vérifiée pour les comptes qui répondent normalement. Une panne silencieuse d'un acteur destination sans réponse explicite n'est pas encore couverte par un timeout applicatif ; c'est donc une limite technique à surveiller hors scénario nominal.
+
+\paragraph{I-8 -- cohérence banque/comptes.}
+La banque maintient un cache \code{soldes} pour lister les comptes et calculer le solde global. Ce cache est mis à jour à partir des réponses des comptes. Les tests vérifient la cohérence après dépôt, retrait et virement. Le réseau de Pétri, lui, ne représente pas les montants précis ; il vérifie la cohérence structurelle du flux, pas l'arithmétique complète des soldes.
+
 \subsection{Vérification LTL}
 
 Le projet implémente un parseur et évaluateur LTL dans \code{LTL.scala}. Les opérateurs supportés incluent \code{!}, \code{\&}, \code{|}, \code{->}, \code{X}, \code{F}, \code{G}, \code{U} et \code{R}.
@@ -298,7 +613,7 @@ Le projet implémente un parseur et évaluateur LTL dans \code{LTL.scala}. Les o
 Quelques formules utiles :
 
 \begin{center}
-\begin{tabularx}{\textwidth}{l X}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.55\textwidth} X}
 \toprule
 Formule & Signification \\
 \midrule
@@ -430,17 +745,52 @@ Lien GitHub & Présent dans le README et sur la page de garde de ce rapport. \\
 \bottomrule
 \end{longtable}
 
-\section{Limites et perspectives}
+\section{Limites et dette technique}
 
-Le projet réalise les objectifs demandés, mais certaines limites restent naturelles :
-\begin{itemize}[leftmargin=*]
-  \item le modèle de Pétri abstrait les soldes par une notion de validité plutôt que par toutes les valeurs monétaires possibles ;
-  \item l'espace d'états augmente rapidement avec le nombre de comptes ;
-  \item le model checker LTL n'intègre pas encore d'optimisations avancées comme les BDD ;
-  \item les contre-exemples pourraient être rendus visuels dans l'interface.
-\end{itemize}
+Le projet réalise les objectifs demandés, mais l'analyse détaillée fait apparaître plusieurs limites. Elles ne remettent pas en cause les propriétés vérifiées dans le périmètre actuel ; elles indiquent plutôt les points à renforcer pour un système plus réaliste.
 
-Les extensions possibles sont la visualisation graphique du réseau, l'export PNML, l'ajout de réseaux temporisés, ou une comparaison plus systématique entre traces Akka et traces Petri.
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.25\textwidth} p{0.14\textwidth} X}
+\toprule
+Limite & Impact & Recommandation \\
+\midrule
+Soldes abstraits dans le réseau de Pétri & Moyen & représenter les montants avec des réseaux colorés ou une abstraction plus fine des seuils de solde \\
+Absence de timeout applicatif sur un virement en attente & Élevé & ajouter un timer côté source pour annuler et rembourser si la destination ne répond pas \\
+Cache des soldes maintenu par \code{Banque} & Moyen & considérer le compte comme source de vérité et recalculer le total par consultation ou événement fiable \\
+Réseau complet généré pour un nombre fixe de comptes & Moyen & ajouter un modèle paramétrable ou une preuve par schéma pour un nombre quelconque de comptes \\
+Pas de persistance des transactions & Faible à moyen & journaliser les opérations et rejouer l'état après redémarrage \\
+Model checker LTL sans optimisations avancées & Faible & ajouter des réductions d'état, des BDD ou des contre-exemples plus compacts pour de grands réseaux \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Les extensions possibles sont la visualisation graphique du réseau, l'export PNML, l'ajout de réseaux temporisés, une comparaison plus systématique entre traces Akka et traces Pétri, ou encore l'intégration directe des résultats LTL dans l'interface de démonstration.
+
+\section{Synthèse de vérification}
+
+La synthèse suivante reprend le format du rapport de référence : elle distingue les propriétés totalement vérifiées, les propriétés partiellement couvertes et les points restants à améliorer.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{X p{0.22\textwidth}}
+\toprule
+Propriété vérifiée & Résultat \\
+\midrule
+Protocoles acteurs typés par \code{ActorRef[T]} et traits scellés & \pass \\
+Routage banque vers comptes existants & \pass \\
+Refus des comptes dupliqués ou créés avec solde négatif & \pass \\
+Dépôt positif et retrait avec solde suffisant & \pass \\
+Solde jamais négatif dans les tests et le modèle abstrait & \pass \\
+Virement confirmé entre deux comptes actifs & \pass \\
+Remboursement de la source si la destination refuse & \pass \\
+Fermeture refusée pendant un virement en attente & \pass \\
+Absence de deadlock dans les réseaux fournis & \pass \\
+Vivacité et libération des verrous dans le modèle Pétri/LTL & \pass \\
+Cohérence exacte des montants dans le réseau de Pétri & \partiel \\
+Tolérance à une destination qui ne répond jamais & \todo \\
+\bottomrule
+\end{tabularx}
+\end{center}
 
 \section{Conclusion}
 
